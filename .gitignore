@@ -4,3 +4,4 @@ __pycache__/
 .env
 CLAUDE.md
 gpt_api_webapp_developer_brief.md
+app.db
