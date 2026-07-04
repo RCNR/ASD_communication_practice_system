@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <link rel="stylesheet" href="/static/style.css" />
+  <title>AI 충실도 체크 - ASD Communication Practice System</title>
+</head>
+<body>
+  <div class="card card-wide">
+    <p class="nav"><a href="/admin">&larr; 참여자 목록</a></p>
+    <h1>AI 충실도 체크리스트</h1>
+    <p class="muted">중재 단계에서 완료된 회기별로 AI 힌트 사용 내역을 검토합니다.</p>
+
+    <table>
+      <tr>
+        <th>참여자</th>
+        <th>회기</th>
+        <th>힌트 사용 횟수</th>
+        <th>검토 상태</th>
+        <th></th>
+      </tr>
+      {% for row in rows %}
+      <tr>
+        <td>{{ row.session.participant_code }}</td>
+        <td>{{ row.session.session_number }}</td>
+        <td>{{ row.hint_count }}</td>
+        <td>{% if row.reviewed %}<span class="badge">검토완료</span>{% else %}미검토{% endif %}</td>
+        <td><a href="/admin/fidelity/{{ row.session.id }}">체크리스트 작성</a></td>
+      </tr>
+      {% endfor %}
+    </table>
+  </div>
+</body>
+</html>
