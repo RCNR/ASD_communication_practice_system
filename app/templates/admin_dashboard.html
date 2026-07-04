@@ -2,37 +2,46 @@
 <html lang="ko">
 <head>
   <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <link rel="stylesheet" href="/static/style.css" />
   <title>관리자 대시보드 - ASD Communication Practice System</title>
 </head>
 <body>
-  <p><a href="/admin/items">문항 관리</a> | <a href="/admin/participants/new">참여자 추가</a></p>
-  <h1>참여자 목록</h1>
-  <table border="1" cellpadding="6">
-    <tr>
-      <th>참여자 코드</th>
-      <th>현재 단계</th>
-      <th>상태</th>
-      <th>기초선 완료</th>
-      <th>중재 완료</th>
-      <th>유지 완료</th>
-      <th>안전 플래그</th>
-      <th></th>
-    </tr>
-    {% for row in rows %}
-    <tr{% if row.safety_flag_count > 0 %} style="background-color: #ffe5e5;"{% endif %}>
-      <td>{{ row.participant.participant_code }}</td>
-      <td>{{ row.participant.current_phase }}</td>
-      <td>{{ row.participant.status }}</td>
-      <td>{{ row.session_counts.baseline }}</td>
-      <td>{{ row.session_counts.intervention }}</td>
-      <td>{{ row.session_counts.maintenance }}</td>
-      <td>{{ row.safety_flag_count if row.safety_flag_count > 0 else "" }}</td>
-      <td>
-        <a href="/admin/participants/{{ row.participant.participant_code }}">응답 보기</a>
-        | <a href="/admin/participants/{{ row.participant.participant_code }}/edit">수정</a>
-      </td>
-    </tr>
-    {% endfor %}
-  </table>
+  <div class="card card-wide">
+    <p class="nav">
+      <a href="/admin/items">문항 관리</a>
+      <span class="sep">|</span>
+      <a href="/admin/participants/new">참여자 추가</a>
+    </p>
+    <h1>참여자 목록</h1>
+    <table>
+      <tr>
+        <th>참여자 코드</th>
+        <th>현재 단계</th>
+        <th>상태</th>
+        <th>기초선 완료</th>
+        <th>중재 완료</th>
+        <th>유지 완료</th>
+        <th>안전 플래그</th>
+        <th></th>
+      </tr>
+      {% for row in rows %}
+      <tr{% if row.safety_flag_count > 0 %} class="flagged"{% endif %}>
+        <td>{{ row.participant.participant_code }}</td>
+        <td>{{ row.participant.current_phase }}</td>
+        <td>{{ row.participant.status }}</td>
+        <td>{{ row.session_counts.baseline }}</td>
+        <td>{{ row.session_counts.intervention }}</td>
+        <td>{{ row.session_counts.maintenance }}</td>
+        <td>{% if row.safety_flag_count > 0 %}<span class="badge">{{ row.safety_flag_count }}</span>{% endif %}</td>
+        <td>
+          <a href="/admin/participants/{{ row.participant.participant_code }}">응답 보기</a>
+          <span class="sep">|</span>
+          <a href="/admin/participants/{{ row.participant.participant_code }}/edit">수정</a>
+        </td>
+      </tr>
+      {% endfor %}
+    </table>
+  </div>
 </body>
 </html>

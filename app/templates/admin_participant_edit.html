@@ -2,61 +2,68 @@
 <html lang="ko">
 <head>
   <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <link rel="stylesheet" href="/static/style.css" />
   <title>{{ participant.participant_code }} 수정 - ASD Communication Practice System</title>
 </head>
 <body>
-  <p><a href="/admin">&larr; 참여자 목록</a></p>
-  <h1>{{ participant.participant_code }} 수정</h1>
-  {% if error %}
-  <p style="color: red;">{{ error }}</p>
-  {% endif %}
-  <form method="post" action="/admin/participants/{{ participant.participant_code }}/edit">
-    <label>기초선 회기 수:
-      <input type="number" name="baseline_length" value="{{ participant.baseline_length }}" min="1" required />
-    </label><br />
+  <div class="card">
+    <p class="nav"><a href="/admin">&larr; 참여자 목록</a></p>
+    <h1>{{ participant.participant_code }} 수정</h1>
+    {% if error %}
+    <p class="error">{{ error }}</p>
+    {% endif %}
+    <form method="post" action="/admin/participants/{{ participant.participant_code }}/edit">
+      <label>기초선 회기 수
+        <input type="number" name="baseline_length" value="{{ participant.baseline_length }}" min="1" required />
+      </label>
 
-    <label>현재 단계:
-      <select name="current_phase">
-        <option value="baseline" {% if participant.current_phase == "baseline" %}selected{% endif %}>baseline</option>
-        <option value="intervention" {% if participant.current_phase == "intervention" %}selected{% endif %}>intervention</option>
-        <option value="maintenance" {% if participant.current_phase == "maintenance" %}selected{% endif %}>maintenance</option>
-      </select>
-    </label><br />
+      <label>현재 단계
+        <select name="current_phase">
+          <option value="baseline" {% if participant.current_phase == "baseline" %}selected{% endif %}>baseline</option>
+          <option value="intervention" {% if participant.current_phase == "intervention" %}selected{% endif %}>intervention</option>
+          <option value="maintenance" {% if participant.current_phase == "maintenance" %}selected{% endif %}>maintenance</option>
+        </select>
+      </label>
 
-    <label>상태:
-      <select name="status">
-        <option value="active" {% if participant.status == "active" %}selected{% endif %}>active</option>
-        <option value="paused" {% if participant.status == "paused" %}selected{% endif %}>paused</option>
-        <option value="dropped" {% if participant.status == "dropped" %}selected{% endif %}>dropped</option>
-      </select>
-    </label><br />
+      <label>상태
+        <select name="status">
+          <option value="active" {% if participant.status == "active" %}selected{% endif %}>active</option>
+          <option value="paused" {% if participant.status == "paused" %}selected{% endif %}>paused</option>
+          <option value="dropped" {% if participant.status == "dropped" %}selected{% endif %}>dropped</option>
+        </select>
+      </label>
 
-    <p>기초선 단계 회기 간 대기시간:
-      <input type="number" name="baseline_wait_d" value="{{ wait.baseline.days }}" min="0" style="width:4em;" />일
-      <input type="number" name="baseline_wait_h" value="{{ wait.baseline.hours }}" min="0" style="width:4em;" />시간
-      <input type="number" name="baseline_wait_m" value="{{ wait.baseline.minutes }}" min="0" style="width:4em;" />분
-      <input type="number" name="baseline_wait_s" value="{{ wait.baseline.seconds }}" min="0" style="width:4em;" />초
-    </p>
+      <p class="section-title">기초선 단계 회기 간 대기시간</p>
+      <div class="field-row">
+        <input type="number" name="baseline_wait_d" value="{{ wait.baseline.days }}" min="0" />일
+        <input type="number" name="baseline_wait_h" value="{{ wait.baseline.hours }}" min="0" />시간
+        <input type="number" name="baseline_wait_m" value="{{ wait.baseline.minutes }}" min="0" />분
+        <input type="number" name="baseline_wait_s" value="{{ wait.baseline.seconds }}" min="0" />초
+      </div>
 
-    <p>중재 단계 회기 간 대기시간:
-      <input type="number" name="intervention_wait_d" value="{{ wait.intervention.days }}" min="0" style="width:4em;" />일
-      <input type="number" name="intervention_wait_h" value="{{ wait.intervention.hours }}" min="0" style="width:4em;" />시간
-      <input type="number" name="intervention_wait_m" value="{{ wait.intervention.minutes }}" min="0" style="width:4em;" />분
-      <input type="number" name="intervention_wait_s" value="{{ wait.intervention.seconds }}" min="0" style="width:4em;" />초
-    </p>
+      <p class="section-title">중재 단계 회기 간 대기시간</p>
+      <div class="field-row">
+        <input type="number" name="intervention_wait_d" value="{{ wait.intervention.days }}" min="0" />일
+        <input type="number" name="intervention_wait_h" value="{{ wait.intervention.hours }}" min="0" />시간
+        <input type="number" name="intervention_wait_m" value="{{ wait.intervention.minutes }}" min="0" />분
+        <input type="number" name="intervention_wait_s" value="{{ wait.intervention.seconds }}" min="0" />초
+      </div>
 
-    <p>유지 단계 회기 간 대기시간:
-      <input type="number" name="maintenance_wait_d" value="{{ wait.maintenance.days }}" min="0" style="width:4em;" />일
-      <input type="number" name="maintenance_wait_h" value="{{ wait.maintenance.hours }}" min="0" style="width:4em;" />시간
-      <input type="number" name="maintenance_wait_m" value="{{ wait.maintenance.minutes }}" min="0" style="width:4em;" />분
-      <input type="number" name="maintenance_wait_s" value="{{ wait.maintenance.seconds }}" min="0" style="width:4em;" />초
-    </p>
+      <p class="section-title">유지 단계 회기 간 대기시간</p>
+      <div class="field-row">
+        <input type="number" name="maintenance_wait_d" value="{{ wait.maintenance.days }}" min="0" />일
+        <input type="number" name="maintenance_wait_h" value="{{ wait.maintenance.hours }}" min="0" />시간
+        <input type="number" name="maintenance_wait_m" value="{{ wait.maintenance.minutes }}" min="0" />분
+        <input type="number" name="maintenance_wait_s" value="{{ wait.maintenance.seconds }}" min="0" />초
+      </div>
 
-    <label>비밀번호 재설정 (선택, 비워두면 유지):
-      <input type="password" name="new_password" />
-    </label><br />
+      <label>비밀번호 재설정 (선택, 비워두면 유지)
+        <input type="password" name="new_password" />
+      </label>
 
-    <button type="submit">저장</button>
-  </form>
+      <button type="submit">저장</button>
+    </form>
+  </div>
 </body>
 </html>

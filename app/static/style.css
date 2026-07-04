@@ -42,6 +42,10 @@ body {
   height: fit-content;
 }
 
+.card-wide {
+  max-width: 1080px;
+}
+
 h1 {
   font-size: 1.4rem;
   margin: 0 0 20px;
@@ -191,4 +195,95 @@ button.secondary:hover {
   font-weight: 600;
   display: block;
   margin-bottom: 4px;
+}
+
+.nav {
+  margin-bottom: 20px;
+  font-size: 0.95rem;
+}
+
+.nav a {
+  color: var(--accent);
+  text-decoration: none;
+  font-weight: 500;
+}
+
+.nav a:hover {
+  text-decoration: underline;
+}
+
+.nav .sep {
+  color: var(--border);
+  margin: 0 8px;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 8px;
+  font-size: 0.92rem;
+}
+
+th,
+td {
+  text-align: left;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--border);
+  vertical-align: top;
+}
+
+th {
+  background: #f4f6f8;
+  font-weight: 600;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+tr.flagged {
+  background: var(--warning-bg);
+}
+
+.badge {
+  display: inline-block;
+  padding: 2px 10px;
+  border-radius: 999px;
+  font-size: 0.85rem;
+  background: #eef2f5;
+  color: var(--text-muted);
+  font-weight: 500;
+}
+
+.section-title {
+  font-size: 1.1rem;
+  font-weight: 600;
+  margin: 28px 0 8px;
+}
+
+.field-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 14px;
+  flex-wrap: wrap;
+}
+
+.field-row input[type="number"] {
+  width: 70px;
+  margin: 0;
+}
+
+.field-row .field-label {
+  min-width: 150px;
+  font-weight: 500;
+}
+
+select {
+  font-family: inherit;
+  font-size: 1rem;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  margin: 6px 0 16px;
+  background: #fff;
+  color: var(--text);
 }
