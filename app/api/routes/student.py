@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session
 from app.core.database import get_db
 from app.models.item import Item
 from app.models.participant import Participant
+from app.models.phase_config import PhaseConfig
 from app.models.trial_response import TrialResponse
 from app.services.hint_service import request_hint
 from app.services.safety_service import detect_safety_flag
@@ -189,8 +190,10 @@ def session_hint(
 
     trial = db.get(TrialResponse, trial_id)
     if trial and not trial.completed:
-        item = db.get(Item, trial.item_id)
-        request_hint(db, trial, item, hint_level)
+        phase_config = db.get(PhaseConfig, trial.phase)
+        if phase_config and phase_config.ai_hint_enabled:
+            item = db.get(Item, trial.item_id)
+            request_hint(db, trial, item, hint_level)
 
     return RedirectResponse(url="/session", status_code=303)
 
