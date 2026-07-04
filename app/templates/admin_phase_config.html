@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <link rel="stylesheet" href="/static/style.css" />
+  <title>단계별 설정 - ASD Communication Practice System</title>
+</head>
+<body>
+  <div class="card">
+    <p class="nav"><a href="/admin">&larr; 참여자 목록</a></p>
+    <h1>단계별 설정</h1>
+    <p class="muted">회기당 문항 수와 AI 힌트 사용 여부는 모든 참여자에게 공통으로 적용되는 단계별 설정입니다.</p>
+
+    <form method="post" action="/admin/phase-config">
+      <label>기초선 회기당 문항 수
+        <input type="number" name="baseline_item_count" value="{{ configs.baseline.default_item_count if configs.baseline else 6 }}" min="1" required />
+      </label>
+
+      <label>중재 회기당 문항 수
+        <input type="number" name="intervention_item_count" value="{{ configs.intervention.default_item_count if configs.intervention else 10 }}" min="1" required />
+      </label>
+      <label>
+        <input type="checkbox" name="intervention_ai_hint_enabled" {% if configs.intervention and configs.intervention.ai_hint_enabled %}checked{% endif %} />
+        중재 단계 AI 힌트 사용
+      </label>
+
+      <label>유지 회기당 문항 수
+        <input type="number" name="maintenance_item_count" value="{{ configs.maintenance.default_item_count if configs.maintenance else 6 }}" min="1" required />
+      </label>
+      <label>
+        <input type="checkbox" name="maintenance_ai_hint_enabled" {% if configs.maintenance and configs.maintenance.ai_hint_enabled %}checked{% endif %} />
+        유지 단계 AI 힌트 사용
+      </label>
+
+      <p class="muted">기초선 단계는 브리프상 AI를 절대 사용하지 않아 항상 꺼져 있습니다.</p>
+
+      <button type="submit">저장</button>
+    </form>
+
+    <p class="muted" style="margin-top: 20px;">주의: 이미 시작된(진행 중) 회기의 문항 수는 바뀌지 않고, 이후 새로 시작하는 회기부터 적용됩니다.</p>
+  </div>
+</body>
+</html>
