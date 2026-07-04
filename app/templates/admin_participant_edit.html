@@ -17,6 +17,12 @@
       <label>기초선 회기 수
         <input type="number" name="baseline_length" value="{{ participant.baseline_length }}" min="1" required />
       </label>
+      <label>중재 회기 수
+        <input type="number" name="intervention_length" value="{{ participant.intervention_length }}" min="1" required />
+      </label>
+      <label>유지 회기 수
+        <input type="number" name="maintenance_length" value="{{ participant.maintenance_length }}" min="1" required />
+      </label>
 
       <label>현재 단계
         <select name="current_phase">

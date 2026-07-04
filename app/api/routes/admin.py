@@ -105,6 +105,8 @@ def admin_participant_new_submit(
     participant_code: str = Form(...),
     password: str = Form(...),
     baseline_length: int = Form(...),
+    intervention_length: int = Form(20),
+    maintenance_length: int = Form(2),
     baseline_wait_d: int = Form(0),
     baseline_wait_h: int = Form(0),
     baseline_wait_m: int = Form(0),
@@ -136,6 +138,8 @@ def admin_participant_new_submit(
             participant_code=participant_code,
             password_hash=hashlib.sha256(password.encode()).hexdigest(),
             baseline_length=baseline_length,
+            intervention_length=intervention_length,
+            maintenance_length=maintenance_length,
             current_phase="baseline",
             status="active",
             baseline_wait_seconds=_combine_seconds(baseline_wait_d, baseline_wait_h, baseline_wait_m, baseline_wait_s),
@@ -179,6 +183,8 @@ def admin_participant_edit_submit(
     request: Request,
     participant_code: str,
     baseline_length: int = Form(...),
+    intervention_length: int = Form(...),
+    maintenance_length: int = Form(...),
     current_phase: str = Form(...),
     status: str = Form(...),
     baseline_wait_d: int = Form(0),
@@ -224,6 +230,8 @@ def admin_participant_edit_submit(
         )
 
     participant.baseline_length = baseline_length
+    participant.intervention_length = intervention_length
+    participant.maintenance_length = maintenance_length
     participant.current_phase = current_phase
     participant.status = status
     participant.baseline_wait_seconds = _combine_seconds(baseline_wait_d, baseline_wait_h, baseline_wait_m, baseline_wait_s)

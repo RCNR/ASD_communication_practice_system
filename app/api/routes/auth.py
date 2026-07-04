@@ -32,6 +32,11 @@ def login_submit(
             request, "login.html", {"error": "참여자 코드 또는 비밀번호가 올바르지 않습니다."}
         )
 
+    if participant.status != "active":
+        return templates.TemplateResponse(
+            request, "login.html", {"error": "이 계정은 현재 이용할 수 없습니다. 연구자에게 문의해 주세요."}
+        )
+
     request.session["participant_code"] = participant.participant_code
     return RedirectResponse(url="/session", status_code=303)
 

@@ -20,18 +20,13 @@ PHASE_USE_TYPE = {
 
 PHASE_ORDER = ["baseline", "intervention", "maintenance"]
 
-# baseline's target comes from participant.baseline_length instead, since it's
-# set per participant (see brief section 3 / 8.1).
-PHASE_TARGET_SESSIONS = {
-    "intervention": 20,  # brief section 3: 참여자별 총 20회기
-    "maintenance": 2,  # brief section 2: 중재 종료 후 2주, 4주 뒤
-}
-
 
 def get_target_session_count(participant: Participant) -> int:
-    if participant.current_phase == "baseline":
-        return participant.baseline_length
-    return PHASE_TARGET_SESSIONS[participant.current_phase]
+    return {
+        "baseline": participant.baseline_length,
+        "intervention": participant.intervention_length,
+        "maintenance": participant.maintenance_length,
+    }[participant.current_phase]
 
 
 def completed_session_count(db: DbSession, participant: Participant) -> int:
