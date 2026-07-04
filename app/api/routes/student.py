@@ -17,6 +17,7 @@ from app.services.safety_service import detect_safety_flag
 from app.services.session_service import (
     advance_phase_if_needed,
     check_wait_gate,
+    completed_session_count,
     get_current_trial,
     get_latest_hint_message,
     get_or_create_active_session,
@@ -120,7 +121,20 @@ def session_screen(request: Request, db: Session = Depends(get_db)):
     if trial is None:
         mark_session_completed(db, study_session)
         advance_phase_if_needed(db, participant)
-        return templates.TemplateResponse(request, "session_complete.html")
+
+        study_finished = participant.current_phase == "maintenance" and completed_session_count(
+            db, participant
+        ) >= get_target_session_count(participant)
+
+        context = {"study_finished": study_finished}
+        if not study_finished:
+            next_available_at = check_wait_gate(db, participant)
+            if next_available_at is not None:
+                context["available_at_iso"] = next_available_at.isoformat()
+            else:
+                context["can_continue"] = True
+
+        return templates.TemplateResponse(request, "session_complete.html", context)
 
     if trial.safety_flag:
         return templates.TemplateResponse(request, "safety_warning.html", {"trial_id": trial.id})
