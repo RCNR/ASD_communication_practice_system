@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <title>관리자 대시보드 - ASD Communication Practice System</title>
+</head>
+<body>
+  <h1>참여자 목록</h1>
+  <table border="1" cellpadding="6">
+    <tr>
+      <th>참여자 코드</th>
+      <th>현재 단계</th>
+      <th>상태</th>
+      <th>기초선 완료</th>
+      <th>중재 완료</th>
+      <th>유지 완료</th>
+      <th>안전 플래그</th>
+      <th></th>
+    </tr>
+    {% for row in rows %}
+    <tr{% if row.safety_flag_count > 0 %} style="background-color: #ffe5e5;"{% endif %}>
+      <td>{{ row.participant.participant_code }}</td>
+      <td>{{ row.participant.current_phase }}</td>
+      <td>{{ row.participant.status }}</td>
+      <td>{{ row.session_counts.baseline }}</td>
+      <td>{{ row.session_counts.intervention }}</td>
+      <td>{{ row.session_counts.maintenance }}</td>
+      <td>{{ row.safety_flag_count if row.safety_flag_count > 0 else "" }}</td>
+      <td><a href="/admin/participants/{{ row.participant.participant_code }}">응답 보기</a></td>
+    </tr>
+    {% endfor %}
+  </table>
+</body>
+</html>
