@@ -1,0 +1,132 @@
+from __future__ import annotations
+
+from datetime import datetime, timezone
+
+from sqlalchemy.orm import Session as DbSession
+
+from app.models.item import Item
+from app.models.participant import Participant
+from app.models.phase_config import PhaseConfig
+from app.models.session import StudySession
+from app.models.session_item import SessionItem
+from app.models.trial_response import TrialResponse
+
+PHASE_USE_TYPE = {
+    "baseline": "assessment",
+    "intervention": "intervention",
+    "maintenance": "assessment",
+}
+
+PHASE_ORDER = ["baseline", "intervention", "maintenance"]
+
+# baseline's target comes from participant.baseline_length instead, since it's
+# set per participant (see brief section 3 / 8.1).
+PHASE_TARGET_SESSIONS = {
+    "intervention": 20,  # brief section 3: 참여자별 총 20회기
+    "maintenance": 2,  # brief section 2: 중재 종료 후 2주, 4주 뒤
+}
+
+
+def get_target_session_count(participant: Participant) -> int:
+    if participant.current_phase == "baseline":
+        return participant.baseline_length
+    return PHASE_TARGET_SESSIONS[participant.current_phase]
+
+
+def completed_session_count(db: DbSession, participant: Participant) -> int:
+    return (
+        db.query(StudySession)
+        .filter_by(
+            participant_code=participant.participant_code,
+            phase=participant.current_phase,
+            status="completed",
+        )
+        .count()
+    )
+
+
+def advance_phase_if_needed(db: DbSession, participant: Participant) -> None:
+    target = get_target_session_count(participant)
+    completed = completed_session_count(db, participant)
+    if completed < target:
+        return
+
+    current_index = PHASE_ORDER.index(participant.current_phase)
+    if current_index < len(PHASE_ORDER) - 1:
+        participant.current_phase = PHASE_ORDER[current_index + 1]
+        db.commit()
+
+
+def get_or_create_active_session(db: DbSession, participant: Participant) -> StudySession | None:
+    phase = participant.current_phase
+
+    active_session = (
+        db.query(StudySession)
+        .filter_by(participant_code=participant.participant_code, phase=phase, status="in_progress")
+        .first()
+    )
+    if active_session:
+        return active_session
+
+    target = get_target_session_count(participant)
+    if completed_session_count(db, participant) >= target:
+        # Terminal phase (maintenance) already completed its full session count.
+        return None
+
+    session_number = (
+        db.query(StudySession)
+        .filter_by(participant_code=participant.participant_code, phase=phase)
+        .count()
+        + 1
+    )
+    phase_config = db.get(PhaseConfig, phase)
+    planned_item_count = phase_config.default_item_count if phase_config else 6
+
+    new_session = StudySession(
+        participant_code=participant.participant_code,
+        phase=phase,
+        session_number=session_number,
+        planned_item_count=planned_item_count,
+        status="in_progress",
+        started_at=datetime.now(timezone.utc),
+    )
+    db.add(new_session)
+    db.flush()
+
+    use_type = PHASE_USE_TYPE[phase]
+    candidate_items = (
+        db.query(Item)
+        .filter_by(use_type=use_type, status="approved")
+        .order_by(Item.item_id)
+        .limit(planned_item_count)
+        .all()
+    )
+    for order, item in enumerate(candidate_items, start=1):
+        db.add(SessionItem(session_id=new_session.id, item_id=item.item_id, item_order=order))
+        db.add(
+            TrialResponse(
+                session_id=new_session.id,
+                item_id=item.item_id,
+                phase=phase,
+                item_order=order,
+                completed=False,
+            )
+        )
+    db.commit()
+    db.refresh(new_session)
+    return new_session
+
+
+def get_current_trial(db: DbSession, study_session: StudySession) -> TrialResponse | None:
+    return (
+        db.query(TrialResponse)
+        .filter_by(session_id=study_session.id, completed=False)
+        .order_by(TrialResponse.item_order)
+        .first()
+    )
+
+
+def mark_session_completed(db: DbSession, study_session: StudySession) -> None:
+    study_session.status = "completed"
+    study_session.completed_at = datetime.now(timezone.utc)
+    db.commit()

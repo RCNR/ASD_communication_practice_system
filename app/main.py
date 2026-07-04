@@ -1,10 +1,11 @@
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request
+from fastapi.responses import RedirectResponse
 from fastapi.staticfiles import StaticFiles
-from fastapi.templating import Jinja2Templates
+from starlette.middleware.sessions import SessionMiddleware
 
-from app.api.routes import chat, health
+from app.api.routes import auth, chat, health, student
 from app.core.config import settings
 from app.core.database import init_db
 
@@ -16,14 +17,18 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title=settings.APP_NAME, debug=settings.DEBUG, lifespan=lifespan)
-templates = Jinja2Templates(directory="app/templates")
+app.add_middleware(SessionMiddleware, secret_key=settings.SECRET_KEY)
 
 app.include_router(health.router, prefix="/api")
 app.include_router(chat.router, prefix="/api")
+app.include_router(auth.router)
+app.include_router(student.router)
 
 app.mount("/static", StaticFiles(directory="app/static"), name="static")
 
 
 @app.get("/")
 def index(request: Request):
-    return templates.TemplateResponse(request, "index.html")
+    if request.session.get("participant_code"):
+        return RedirectResponse(url="/session", status_code=303)
+    return RedirectResponse(url="/login", status_code=303)
