@@ -5,6 +5,7 @@
   <title>관리자 대시보드 - ASD Communication Practice System</title>
 </head>
 <body>
+  <p><a href="/admin/items">문항 관리</a> | <a href="/admin/participants/new">참여자 추가</a></p>
   <h1>참여자 목록</h1>
   <table border="1" cellpadding="6">
     <tr>
@@ -26,7 +27,10 @@
       <td>{{ row.session_counts.intervention }}</td>
       <td>{{ row.session_counts.maintenance }}</td>
       <td>{{ row.safety_flag_count if row.safety_flag_count > 0 else "" }}</td>
-      <td><a href="/admin/participants/{{ row.participant.participant_code }}">응답 보기</a></td>
+      <td>
+        <a href="/admin/participants/{{ row.participant.participant_code }}">응답 보기</a>
+        | <a href="/admin/participants/{{ row.participant.participant_code }}/edit">수정</a>
+      </td>
     </tr>
     {% endfor %}
   </table>

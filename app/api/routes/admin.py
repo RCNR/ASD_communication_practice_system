@@ -1,6 +1,8 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, Form, Request
+import hashlib
+
+from fastapi import APIRouter, Depends, Form, Request, UploadFile
 from fastapi.responses import RedirectResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
@@ -11,6 +13,7 @@ from app.models.item import Item
 from app.models.participant import Participant
 from app.models.session import StudySession
 from app.models.trial_response import TrialResponse
+from app.services.item_import_service import parse_item_file, upsert_items
 from app.services.session_service import PHASE_ORDER, get_latest_hint_message
 
 router = APIRouter(prefix="/admin")
@@ -76,6 +79,104 @@ def admin_dashboard(request: Request, db: Session = Depends(get_db)):
     return templates.TemplateResponse(request, "admin_dashboard.html", {"rows": rows})
 
 
+@router.get("/participants/new")
+def admin_participant_new_form(request: Request):
+    redirect = _require_admin(request)
+    if redirect:
+        return redirect
+
+    return templates.TemplateResponse(request, "admin_participant_new.html", {"error": None})
+
+
+@router.post("/participants/new")
+def admin_participant_new_submit(
+    request: Request,
+    participant_code: str = Form(...),
+    password: str = Form(...),
+    baseline_length: int = Form(...),
+    db: Session = Depends(get_db),
+):
+    redirect = _require_admin(request)
+    if redirect:
+        return redirect
+
+    existing = db.query(Participant).filter_by(participant_code=participant_code).first()
+    if existing:
+        return templates.TemplateResponse(
+            request,
+            "admin_participant_new.html",
+            {"error": f"참여자 코드 '{participant_code}'는 이미 존재합니다."},
+        )
+
+    db.add(
+        Participant(
+            participant_code=participant_code,
+            password_hash=hashlib.sha256(password.encode()).hexdigest(),
+            baseline_length=baseline_length,
+            current_phase="baseline",
+            status="active",
+        )
+    )
+    db.commit()
+    return RedirectResponse(url="/admin", status_code=303)
+
+
+@router.get("/participants/{participant_code}/edit")
+def admin_participant_edit_form(request: Request, participant_code: str, db: Session = Depends(get_db)):
+    redirect = _require_admin(request)
+    if redirect:
+        return redirect
+
+    participant = db.query(Participant).filter_by(participant_code=participant_code).first()
+    if not participant:
+        return RedirectResponse(url="/admin", status_code=303)
+
+    return templates.TemplateResponse(
+        request, "admin_participant_edit.html", {"participant": participant, "error": None}
+    )
+
+
+@router.post("/participants/{participant_code}/edit")
+def admin_participant_edit_submit(
+    request: Request,
+    participant_code: str,
+    baseline_length: int = Form(...),
+    current_phase: str = Form(...),
+    status: str = Form(...),
+    new_password: str = Form(""),
+    db: Session = Depends(get_db),
+):
+    redirect = _require_admin(request)
+    if redirect:
+        return redirect
+
+    participant = db.query(Participant).filter_by(participant_code=participant_code).first()
+    if not participant:
+        return RedirectResponse(url="/admin", status_code=303)
+
+    if current_phase not in PHASE_ORDER:
+        return templates.TemplateResponse(
+            request,
+            "admin_participant_edit.html",
+            {"participant": participant, "error": "올바르지 않은 단계입니다."},
+        )
+    if status not in ("active", "paused", "dropped"):
+        return templates.TemplateResponse(
+            request,
+            "admin_participant_edit.html",
+            {"participant": participant, "error": "올바르지 않은 상태입니다."},
+        )
+
+    participant.baseline_length = baseline_length
+    participant.current_phase = current_phase
+    participant.status = status
+    if new_password:
+        participant.password_hash = hashlib.sha256(new_password.encode()).hexdigest()
+    db.commit()
+
+    return RedirectResponse(url="/admin", status_code=303)
+
+
 @router.get("/participants/{participant_code}")
 def admin_participant_detail(request: Request, participant_code: str, db: Session = Depends(get_db)):
     redirect = _require_admin(request)
@@ -120,3 +221,31 @@ def admin_participant_detail(request: Request, participant_code: str, db: Sessio
         "admin_participant_detail.html",
         {"participant": participant, "trial_rows": trial_rows},
     )
+
+
+@router.get("/items")
+def admin_items(request: Request, db: Session = Depends(get_db)):
+    redirect = _require_admin(request)
+    if redirect:
+        return redirect
+
+    items = db.query(Item).order_by(Item.item_id).all()
+    return templates.TemplateResponse(request, "admin_items.html", {"items": items, "result": None})
+
+
+@router.post("/items/upload")
+async def admin_items_upload(request: Request, file: UploadFile, db: Session = Depends(get_db)):
+    redirect = _require_admin(request)
+    if redirect:
+        return redirect
+
+    content = await file.read()
+    try:
+        rows = parse_item_file(file.filename, content)
+        upserted, errors = upsert_items(db, rows)
+        result = {"upserted": upserted, "errors": errors}
+    except Exception as exc:
+        result = {"upserted": 0, "errors": [f"파일을 읽는 중 오류가 발생했습니다: {exc}"]}
+
+    items = db.query(Item).order_by(Item.item_id).all()
+    return templates.TemplateResponse(request, "admin_items.html", {"items": items, "result": result})
