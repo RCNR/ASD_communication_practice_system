@@ -2,17 +2,23 @@
 <html lang="ko">
 <head>
   <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <link rel="stylesheet" href="/static/style.css" />
   <title>회기 진행 - ASD Communication Practice System</title>
 </head>
 <body>
-  <p>진행률: {{ progress_current }}/{{ progress_total }}</p>
-  <p>친구가 이렇게 보냈어.</p>
-  <p>"{{ item.item_text }}"</p>
-  <p>친구에게 보낼 답장을 써보세요.</p>
-  <form method="post" action="/session/respond">
-    <input type="hidden" name="trial_id" value="{{ trial_id }}" />
-    <textarea name="response_text" rows="4" cols="50" required></textarea><br />
-    <button type="submit">다음</button>
-  </form>
+  <div class="card">
+    <p class="progress">진행률: {{ progress_current }}/{{ progress_total }}</p>
+    <div class="situation-box">
+      <p class="muted">친구가 이렇게 보냈어.</p>
+      <p>"{{ item.item_text }}"</p>
+    </div>
+    <p>친구에게 보낼 답장을 써보세요.</p>
+    <form method="post" action="/session/respond">
+      <input type="hidden" name="trial_id" value="{{ trial_id }}" />
+      <textarea name="response_text" rows="4" required></textarea>
+      <button type="submit">다음</button>
+    </form>
+  </div>
 </body>
 </html>

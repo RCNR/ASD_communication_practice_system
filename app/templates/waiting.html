@@ -2,11 +2,15 @@
 <html lang="ko">
 <head>
   <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <link rel="stylesheet" href="/static/style.css" />
   <title>대기 중 - ASD Communication Practice System</title>
 </head>
 <body>
-  <h1>다음 회기까지 기다려 주세요.</h1>
-  <p id="countdown">계산 중...</p>
+  <div class="card">
+    <h1>다음 회기까지 기다려 주세요.</h1>
+    <p id="countdown" class="countdown">계산 중...</p>
+  </div>
 
   <script>
     const target = new Date("{{ available_at_iso }}").getTime();
@@ -22,7 +26,7 @@
       const hours = Math.floor((diff / (1000 * 60 * 60)) % 24);
       const minutes = Math.floor((diff / (1000 * 60)) % 60);
       const seconds = Math.floor((diff / 1000) % 60);
-      el.textContent = `남은 시간: ${days}일 ${hours}시간 ${minutes}분 ${seconds}초`;
+      el.textContent = `${days}일 ${hours}시간 ${minutes}분 ${seconds}초`;
     }
 
     update();

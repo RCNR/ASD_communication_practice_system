@@ -2,71 +2,83 @@
 <html lang="ko">
 <head>
   <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <link rel="stylesheet" href="/static/style.css" />
   <title>중재 회기 - ASD Communication Practice System</title>
 </head>
 <body>
-  <p>진행률: {{ progress_current }}/{{ progress_total }}</p>
-  <p>친구가 이렇게 보냈어.</p>
-  <p>"{{ item.item_text }}"</p>
+  <div class="card">
+    <p class="progress">진행률: {{ progress_current }}/{{ progress_total }}</p>
+    <div class="situation-box">
+      <p class="muted">친구가 이렇게 보냈어.</p>
+      <p>"{{ item.item_text }}"</p>
+    </div>
 
-  {% if stage == "first" %}
-  <p>친구에게 보낼 답장을 먼저 써보세요.</p>
-  <form method="post" action="/session/first-response">
-    <input type="hidden" name="trial_id" value="{{ trial_id }}" />
-    <textarea name="response_text" rows="4" cols="50" required></textarea><br />
-    <button type="submit">첫 답장 제출</button>
-  </form>
-
-  {% else %}
-  <p><strong>내 첫 답장:</strong> {{ first_response }}</p>
-
-  {% for hint in hints_shown %}
-  <p><strong>{{ hint.level }}단계 힌트:</strong> {{ hint.message }}</p>
-  {% endfor %}
-
-  {% if example_used %}
-  <p><strong>참고 답장:</strong> "{{ example_text }}"</p>
-  <p>이걸 그대로 베끼기보다 네 말로 바꿔서 써보세요.</p>
-  {% endif %}
-
-  {% if needs_revise_level %}
-  <form method="post" action="/session/revise">
-    <input type="hidden" name="trial_id" value="{{ trial_id }}" />
-    <input type="hidden" name="hint_level" value="{{ needs_revise_level }}" />
-    <textarea name="response_text" rows="4" cols="50" required></textarea><br />
-    <button type="submit">수정 답장 제출</button>
-  </form>
-  {% endif %}
-
-  <div>
-    {% if can_request_hint1 %}
-    <form method="post" action="/session/hint" style="display:inline;">
+    {% if stage == "first" %}
+    <p>친구에게 보낼 답장을 먼저 써보세요.</p>
+    <form method="post" action="/session/first-response">
       <input type="hidden" name="trial_id" value="{{ trial_id }}" />
-      <input type="hidden" name="hint_level" value="1" />
-      <button type="submit">힌트 보기</button>
+      <textarea name="response_text" rows="4" required></textarea>
+      <button type="submit">첫 답장 제출</button>
+    </form>
+
+    {% else %}
+    <p><span class="first-response-label">내 첫 답장</span>{{ first_response }}</p>
+
+    {% for hint in hints_shown %}
+    <div class="hint-box">
+      <span class="label">{{ hint.level }}단계 힌트</span>
+      {{ hint.message }}
+    </div>
+    {% endfor %}
+
+    {% if example_used %}
+    <div class="example-box">
+      <span class="label">참고 답장</span>
+      "{{ example_text }}"
+      <p class="muted" style="margin: 8px 0 0;">이걸 그대로 베끼기보다 네 말로 바꿔서 써보세요.</p>
+    </div>
+    {% endif %}
+
+    {% if needs_revise_level %}
+    <form method="post" action="/session/revise">
+      <input type="hidden" name="trial_id" value="{{ trial_id }}" />
+      <input type="hidden" name="hint_level" value="{{ needs_revise_level }}" />
+      <textarea name="response_text" rows="4" required></textarea>
+      <button type="submit">수정 답장 제출</button>
     </form>
     {% endif %}
 
-    {% if can_request_hint2 %}
-    <form method="post" action="/session/hint" style="display:inline;">
-      <input type="hidden" name="trial_id" value="{{ trial_id }}" />
-      <input type="hidden" name="hint_level" value="2" />
-      <button type="submit">2단계 힌트 보기</button>
-    </form>
-    {% endif %}
+    <div class="actions">
+      {% if can_request_hint1 %}
+      <form method="post" action="/session/hint">
+        <input type="hidden" name="trial_id" value="{{ trial_id }}" />
+        <input type="hidden" name="hint_level" value="1" />
+        <button type="submit" class="secondary">힌트 보기</button>
+      </form>
+      {% endif %}
 
-    {% if not example_used %}
-    <form method="post" action="/session/example" style="display:inline;">
-      <input type="hidden" name="trial_id" value="{{ trial_id }}" />
-      <button type="submit">예시 보기</button>
-    </form>
-    {% endif %}
+      {% if can_request_hint2 %}
+      <form method="post" action="/session/hint">
+        <input type="hidden" name="trial_id" value="{{ trial_id }}" />
+        <input type="hidden" name="hint_level" value="2" />
+        <button type="submit" class="secondary">2단계 힌트 보기</button>
+      </form>
+      {% endif %}
 
-    <form method="post" action="/session/finalize" style="display:inline;">
-      <input type="hidden" name="trial_id" value="{{ trial_id }}" />
-      <button type="submit">다음 문항</button>
-    </form>
+      {% if not example_used %}
+      <form method="post" action="/session/example">
+        <input type="hidden" name="trial_id" value="{{ trial_id }}" />
+        <button type="submit" class="secondary">예시 보기</button>
+      </form>
+      {% endif %}
+
+      <form method="post" action="/session/finalize">
+        <input type="hidden" name="trial_id" value="{{ trial_id }}" />
+        <button type="submit">다음 문항</button>
+      </form>
+    </div>
+    {% endif %}
   </div>
-  {% endif %}
 </body>
 </html>

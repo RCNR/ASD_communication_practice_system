@@ -2,14 +2,20 @@
 <html lang="ko">
 <head>
   <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <link rel="stylesheet" href="/static/style.css" />
   <title>안내 - ASD Communication Practice System</title>
 </head>
 <body>
-  <p>이 내용은 대화 연습보다 중요한 내용이에요.</p>
-  <p>지금 옆에 계신 보호자나 선생님께 바로 이야기해 주세요.</p>
-  <form method="post" action="/session/safety-acknowledge">
-    <input type="hidden" name="trial_id" value="{{ trial_id }}" />
-    <button type="submit">확인했어요</button>
-  </form>
+  <div class="card">
+    <div class="warning-box">
+      <p>이 내용은 대화 연습보다 중요한 내용이에요.</p>
+      <p style="margin-bottom: 0;">지금 옆에 계신 보호자나 선생님께 바로 이야기해 주세요.</p>
+    </div>
+    <form method="post" action="/session/safety-acknowledge">
+      <input type="hidden" name="trial_id" value="{{ trial_id }}" />
+      <button type="submit">확인했어요</button>
+    </form>
+  </div>
 </body>
 </html>

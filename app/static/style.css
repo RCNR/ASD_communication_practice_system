@@ -1,0 +1,194 @@
+:root {
+  --bg: #eef2f5;
+  --card-bg: #ffffff;
+  --text: #2d3436;
+  --text-muted: #6b7280;
+  --accent: #3f7f8f;
+  --accent-hover: #336874;
+  --border: #dde3e8;
+  --hint-bg: #fdf6e3;
+  --hint-border: #e8c468;
+  --example-bg: #eef7f0;
+  --example-border: #7fb98f;
+  --warning-bg: #fdece0;
+  --warning-border: #e08a4f;
+  --radius: 12px;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  background: var(--bg);
+  color: var(--text);
+  font-family: "Apple SD Gothic Neo", "Malgun Gothic", -apple-system, BlinkMacSystemFont, sans-serif;
+  font-size: 18px;
+  line-height: 1.6;
+  display: flex;
+  justify-content: center;
+  padding: 32px 16px;
+}
+
+.card {
+  background: var(--card-bg);
+  border-radius: var(--radius);
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.06);
+  padding: 32px;
+  width: 100%;
+  max-width: 560px;
+  height: fit-content;
+}
+
+h1 {
+  font-size: 1.4rem;
+  margin: 0 0 20px;
+  color: var(--text);
+}
+
+p {
+  margin: 0 0 16px;
+}
+
+.muted {
+  color: var(--text-muted);
+  font-size: 0.95rem;
+}
+
+.progress {
+  color: var(--text-muted);
+  font-size: 0.95rem;
+  margin-bottom: 24px;
+}
+
+.situation-box {
+  background: #f4f6f8;
+  border-radius: var(--radius);
+  padding: 20px;
+  margin-bottom: 20px;
+  font-size: 1.15rem;
+}
+
+textarea,
+input[type="text"],
+input[type="password"],
+input[type="number"] {
+  width: 100%;
+  font-family: inherit;
+  font-size: 1rem;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  margin: 6px 0 16px;
+  background: #fff;
+  color: var(--text);
+}
+
+textarea:focus,
+input:focus {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+label {
+  display: block;
+  font-weight: 500;
+  margin-bottom: 4px;
+}
+
+button {
+  font-family: inherit;
+  font-size: 1rem;
+  font-weight: 600;
+  padding: 12px 22px;
+  border: none;
+  border-radius: 8px;
+  background: var(--accent);
+  color: #fff;
+  cursor: pointer;
+  margin: 4px 8px 4px 0;
+}
+
+button:hover {
+  background: var(--accent-hover);
+}
+
+button.secondary {
+  background: #fff;
+  color: var(--accent);
+  border: 1.5px solid var(--accent);
+}
+
+button.secondary:hover {
+  background: #f2f8f9;
+}
+
+.hint-box {
+  background: var(--hint-bg);
+  border-left: 4px solid var(--hint-border);
+  border-radius: 8px;
+  padding: 14px 16px;
+  margin-bottom: 14px;
+}
+
+.hint-box .label {
+  font-weight: 600;
+  color: #8a6d1f;
+  display: block;
+  margin-bottom: 4px;
+}
+
+.example-box {
+  background: var(--example-bg);
+  border-left: 4px solid var(--example-border);
+  border-radius: 8px;
+  padding: 14px 16px;
+  margin-bottom: 14px;
+}
+
+.example-box .label {
+  font-weight: 600;
+  color: #3c6b48;
+  display: block;
+  margin-bottom: 4px;
+}
+
+.warning-box {
+  background: var(--warning-bg);
+  border-left: 4px solid var(--warning-border);
+  border-radius: 8px;
+  padding: 20px;
+  margin-bottom: 20px;
+}
+
+.actions {
+  margin-top: 20px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.error {
+  color: #b3432b;
+  background: #fdece7;
+  border-radius: 8px;
+  padding: 10px 14px;
+  margin-bottom: 16px;
+  font-size: 0.95rem;
+}
+
+.countdown {
+  font-size: 1.6rem;
+  font-weight: 600;
+  text-align: center;
+  color: var(--accent);
+  margin: 24px 0;
+}
+
+.first-response-label {
+  font-weight: 600;
+  display: block;
+  margin-bottom: 4px;
+}
