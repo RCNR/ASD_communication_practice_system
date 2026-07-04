@@ -4,6 +4,7 @@ from datetime import datetime, timezone
 
 from sqlalchemy.orm import Session as DbSession
 
+from app.models.ai_hint_log import AiHintLog
 from app.models.item import Item
 from app.models.participant import Participant
 from app.models.phase_config import PhaseConfig
@@ -130,3 +131,13 @@ def mark_session_completed(db: DbSession, study_session: StudySession) -> None:
     study_session.status = "completed"
     study_session.completed_at = datetime.now(timezone.utc)
     db.commit()
+
+
+def get_latest_hint_message(db: DbSession, trial_id: int, hint_level: int) -> str | None:
+    log = (
+        db.query(AiHintLog)
+        .filter_by(trial_id=trial_id, hint_level=hint_level)
+        .order_by(AiHintLog.created_at.desc())
+        .first()
+    )
+    return log.hint_message if log else None

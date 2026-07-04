@@ -22,6 +22,18 @@ db.merge(
     )
 )
 
+# Not a real research participant code - only for browsing the intervention
+# screen in dev without disturbing P01's baseline data.
+db.merge(
+    Participant(
+        participant_code="P_TEST",
+        password_hash=hashlib.sha256(b"1234").hexdigest(),
+        baseline_length=3,
+        current_phase="intervention",
+        status="active",
+    )
+)
+
 for phase, ai_hint_enabled, default_item_count in [
     ("baseline", False, 6),
     ("intervention", True, 10),
