@@ -490,4 +490,4 @@ def admin_phase_config_submit(
         config.ai_hint_enabled = ai_hint_enabled[phase]
 
     db.commit()
-    return RedirectResponse(url="/admin/phase-config", status_code=303)
+    return RedirectResponse(url="/admin", status_code=303)
