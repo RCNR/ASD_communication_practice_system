@@ -20,11 +20,14 @@ from app.services.session_service import (
     get_current_trial,
     get_latest_hint_message,
     get_or_create_active_session,
+    get_target_session_count,
     mark_session_completed,
 )
 
 router = APIRouter()
 templates = Jinja2Templates(directory="app/templates")
+
+PHASE_LABEL = {"baseline": "기초선", "intervention": "중재", "maintenance": "유지"}
 
 
 def _current_participant(request: Request, db: Session) -> Participant | None:
@@ -34,7 +37,13 @@ def _current_participant(request: Request, db: Session) -> Participant | None:
     return db.query(Participant).filter_by(participant_code=participant_code).first()
 
 
-def _render_intervention_item(request: Request, db: Session, trial: TrialResponse, planned_item_count: int):
+def _render_intervention_item(
+    request: Request,
+    db: Session,
+    trial: TrialResponse,
+    planned_item_count: int,
+    session_label: dict,
+):
     item = db.get(Item, trial.item_id)
 
     if trial.first_response is None:
@@ -47,6 +56,7 @@ def _render_intervention_item(request: Request, db: Session, trial: TrialRespons
                 "progress_current": trial.item_order,
                 "progress_total": planned_item_count,
                 "stage": "first",
+                **session_label,
             },
         )
 
@@ -84,6 +94,7 @@ def _render_intervention_item(request: Request, db: Session, trial: TrialRespons
             "can_request_hint2": can_request_hint2,
             "example_used": trial.example_used,
             "example_text": item.verified_example if trial.example_used else None,
+            **session_label,
         },
     )
 
@@ -118,8 +129,16 @@ def session_screen(request: Request, db: Session = Depends(get_db)):
         trial.first_response_started_at = datetime.now(timezone.utc)
         db.commit()
 
+    session_label = {
+        "phase_label": PHASE_LABEL[study_session.phase],
+        "session_number": study_session.session_number,
+        "session_target": get_target_session_count(participant),
+    }
+
     if study_session.phase == "intervention":
-        return _render_intervention_item(request, db, trial, study_session.planned_item_count)
+        return _render_intervention_item(
+            request, db, trial, study_session.planned_item_count, session_label
+        )
 
     item = db.get(Item, trial.item_id)
     return templates.TemplateResponse(
@@ -130,6 +149,7 @@ def session_screen(request: Request, db: Session = Depends(get_db)):
             "trial_id": trial.id,
             "progress_current": trial.item_order,
             "progress_total": study_session.planned_item_count,
+            **session_label,
         },
     )
 
