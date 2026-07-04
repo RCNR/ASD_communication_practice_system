@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 from sqlalchemy.orm import Session as DbSession
 
@@ -56,6 +56,49 @@ def advance_phase_if_needed(db: DbSession, participant: Participant) -> None:
     if current_index < len(PHASE_ORDER) - 1:
         participant.current_phase = PHASE_ORDER[current_index + 1]
         db.commit()
+
+
+def get_wait_seconds(participant: Participant, phase: str) -> int:
+    return {
+        "baseline": participant.baseline_wait_seconds,
+        "intervention": participant.intervention_wait_seconds,
+        "maintenance": participant.maintenance_wait_seconds,
+    }[phase]
+
+
+def check_wait_gate(db: DbSession, participant: Participant) -> datetime | None:
+    """Returns the datetime the next session becomes available, or None if the
+    participant can start one right now (already in progress, first-ever
+    session, or the configured wait period has already elapsed)."""
+    phase = participant.current_phase
+
+    active_session = (
+        db.query(StudySession)
+        .filter_by(participant_code=participant.participant_code, phase=phase, status="in_progress")
+        .first()
+    )
+    if active_session:
+        return None
+
+    last_completed = (
+        db.query(StudySession)
+        .filter_by(participant_code=participant.participant_code, status="completed")
+        .order_by(StudySession.completed_at.desc())
+        .first()
+    )
+    if last_completed is None or last_completed.completed_at is None:
+        return None
+
+    completed_at = last_completed.completed_at
+    if completed_at.tzinfo is None:
+        # SQLite drops tzinfo on read even for DateTime(timezone=True) columns.
+        completed_at = completed_at.replace(tzinfo=timezone.utc)
+
+    wait_seconds = get_wait_seconds(participant, phase)
+    available_at = completed_at + timedelta(seconds=wait_seconds)
+    if available_at <= datetime.now(timezone.utc):
+        return None
+    return available_at
 
 
 def get_or_create_active_session(db: DbSession, participant: Participant) -> StudySession | None:

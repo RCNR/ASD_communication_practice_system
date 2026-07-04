@@ -16,6 +16,7 @@ from app.services.hint_service import request_hint
 from app.services.safety_service import detect_safety_flag
 from app.services.session_service import (
     advance_phase_if_needed,
+    check_wait_gate,
     get_current_trial,
     get_latest_hint_message,
     get_or_create_active_session,
@@ -92,6 +93,12 @@ def session_screen(request: Request, db: Session = Depends(get_db)):
     participant = _current_participant(request, db)
     if not participant:
         return RedirectResponse(url="/login", status_code=303)
+
+    available_at = check_wait_gate(db, participant)
+    if available_at is not None:
+        return templates.TemplateResponse(
+            request, "waiting.html", {"available_at_iso": available_at.isoformat()}
+        )
 
     study_session = get_or_create_active_session(db, participant)
     if study_session is None:

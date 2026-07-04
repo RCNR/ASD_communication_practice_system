@@ -14,6 +14,28 @@
     <label>참여자 코드: <input type="text" name="participant_code" placeholder="P01" required /></label><br />
     <label>비밀번호: <input type="password" name="password" required /></label><br />
     <label>기초선 회기 수: <input type="number" name="baseline_length" value="3" min="1" required /></label><br />
+
+    <p>기초선 단계 회기 간 대기시간:
+      <input type="number" name="baseline_wait_d" value="0" min="0" style="width:4em;" />일
+      <input type="number" name="baseline_wait_h" value="0" min="0" style="width:4em;" />시간
+      <input type="number" name="baseline_wait_m" value="0" min="0" style="width:4em;" />분
+      <input type="number" name="baseline_wait_s" value="0" min="0" style="width:4em;" />초
+    </p>
+
+    <p>중재 단계 회기 간 대기시간:
+      <input type="number" name="intervention_wait_d" value="0" min="0" style="width:4em;" />일
+      <input type="number" name="intervention_wait_h" value="0" min="0" style="width:4em;" />시간
+      <input type="number" name="intervention_wait_m" value="0" min="0" style="width:4em;" />분
+      <input type="number" name="intervention_wait_s" value="0" min="0" style="width:4em;" />초
+    </p>
+
+    <p>유지 단계 회기 간 대기시간:
+      <input type="number" name="maintenance_wait_d" value="14" min="0" style="width:4em;" />일
+      <input type="number" name="maintenance_wait_h" value="0" min="0" style="width:4em;" />시간
+      <input type="number" name="maintenance_wait_m" value="0" min="0" style="width:4em;" />분
+      <input type="number" name="maintenance_wait_s" value="0" min="0" style="width:4em;" />초
+    </p>
+
     <button type="submit">추가</button>
   </form>
 </body>

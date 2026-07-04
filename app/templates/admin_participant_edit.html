@@ -31,6 +31,27 @@
       </select>
     </label><br />
 
+    <p>기초선 단계 회기 간 대기시간:
+      <input type="number" name="baseline_wait_d" value="{{ wait.baseline.days }}" min="0" style="width:4em;" />일
+      <input type="number" name="baseline_wait_h" value="{{ wait.baseline.hours }}" min="0" style="width:4em;" />시간
+      <input type="number" name="baseline_wait_m" value="{{ wait.baseline.minutes }}" min="0" style="width:4em;" />분
+      <input type="number" name="baseline_wait_s" value="{{ wait.baseline.seconds }}" min="0" style="width:4em;" />초
+    </p>
+
+    <p>중재 단계 회기 간 대기시간:
+      <input type="number" name="intervention_wait_d" value="{{ wait.intervention.days }}" min="0" style="width:4em;" />일
+      <input type="number" name="intervention_wait_h" value="{{ wait.intervention.hours }}" min="0" style="width:4em;" />시간
+      <input type="number" name="intervention_wait_m" value="{{ wait.intervention.minutes }}" min="0" style="width:4em;" />분
+      <input type="number" name="intervention_wait_s" value="{{ wait.intervention.seconds }}" min="0" style="width:4em;" />초
+    </p>
+
+    <p>유지 단계 회기 간 대기시간:
+      <input type="number" name="maintenance_wait_d" value="{{ wait.maintenance.days }}" min="0" style="width:4em;" />일
+      <input type="number" name="maintenance_wait_h" value="{{ wait.maintenance.hours }}" min="0" style="width:4em;" />시간
+      <input type="number" name="maintenance_wait_m" value="{{ wait.maintenance.minutes }}" min="0" style="width:4em;" />분
+      <input type="number" name="maintenance_wait_s" value="{{ wait.maintenance.seconds }}" min="0" style="width:4em;" />초
+    </p>
+
     <label>비밀번호 재설정 (선택, 비워두면 유지):
       <input type="password" name="new_password" />
     </label><br />

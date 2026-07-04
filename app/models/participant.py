@@ -14,3 +14,10 @@ class Participant(Base):
     current_phase = Column(String, nullable=False)  # baseline / intervention / maintenance
     status = Column(String, nullable=False, default="active")  # active / paused / dropped
     created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    # Seconds that must pass after the participant's last completed session
+    # before the next session in that phase can start. Set per participant by
+    # an admin (as day/hour/minute/second in the UI, stored combined here).
+    baseline_wait_seconds = Column(Integer, nullable=False, default=0)
+    intervention_wait_seconds = Column(Integer, nullable=False, default=0)
+    maintenance_wait_seconds = Column(Integer, nullable=False, default=14 * 86400)
