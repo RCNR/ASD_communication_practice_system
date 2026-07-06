@@ -12,8 +12,7 @@ class Item(Base):
     emotion_tag = Column(String, nullable=True)
     item_text = Column(String, nullable=False)
     target_response = Column(String, nullable=True)
-    hint1_template = Column(String, nullable=True)
-    hint2_template = Column(String, nullable=True)
+    hint_template = Column(String, nullable=True)
     verified_example = Column(String, nullable=True)
     cvi_score = Column(Float, nullable=True)
     status = Column(String, nullable=False, default="approved")  # approved / revise / deleted

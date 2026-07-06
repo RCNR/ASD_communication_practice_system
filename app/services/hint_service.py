@@ -81,7 +81,7 @@ def evaluate_answer(
 
     On API/validation failure, defaults to is_adequate=False (fails toward
     giving the student more help rather than silently skipping a check)."""
-    fallback_template = item.hint1_template if hint_level == 1 else item.hint2_template
+    fallback_template = item.hint_template
 
     payload = {
         "session_ref": trial.id,
