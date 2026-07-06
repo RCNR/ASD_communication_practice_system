@@ -12,14 +12,14 @@ from app.models.item import Item
 from app.models.participant import Participant
 from app.models.phase_config import PhaseConfig
 from app.models.trial_response import TrialResponse
-from app.services.hint_service import request_hint
+from app.services.hint_service import evaluate_answer
 from app.services.safety_service import detect_safety_flag
 from app.services.session_service import (
     advance_phase_if_needed,
     check_wait_gate,
     completed_session_count,
     get_current_trial,
-    get_latest_hint_message,
+    get_latest_evaluation,
     get_or_create_active_session,
     get_target_session_count,
     mark_session_completed,
@@ -46,56 +46,57 @@ def _render_intervention_item(
     session_label: dict,
 ):
     item = db.get(Item, trial.item_id)
+    base_context = {
+        "item": item,
+        "trial_id": trial.id,
+        "progress_current": trial.item_order,
+        "progress_total": planned_item_count,
+        **session_label,
+    }
 
     if trial.first_response is None:
+        return templates.TemplateResponse(
+            request, "intervention_item.html", {**base_context, "stage": "first"}
+        )
+
+    eval1 = get_latest_evaluation(db, trial.id, 1)
+
+    if eval1 is None or eval1.is_adequate:
+        return templates.TemplateResponse(
+            request,
+            "intervention_item.html",
+            {**base_context, "stage": "adequate", "first_response": trial.first_response},
+        )
+
+    if trial.revised_response_1 is None:
         return templates.TemplateResponse(
             request,
             "intervention_item.html",
             {
-                "item": item,
-                "trial_id": trial.id,
-                "progress_current": trial.item_order,
-                "progress_total": planned_item_count,
-                "stage": "first",
-                **session_label,
+                **base_context,
+                "stage": "hint_wait_revision",
+                "first_response": trial.first_response,
+                "feedback_message": eval1.hint_message,
             },
         )
 
-    hint1 = get_latest_hint_message(db, trial.id, 1)
-    hint2 = get_latest_hint_message(db, trial.id, 2)
+    eval2 = get_latest_evaluation(db, trial.id, 2)
 
-    hints_shown = []
-    if hint1:
-        hints_shown.append({"level": 1, "message": hint1})
-    if hint2:
-        hints_shown.append({"level": 2, "message": hint2})
-
-    needs_revise_level = None
-    if hint1 and trial.revised_response_1 is None:
-        needs_revise_level = 1
-    elif hint2 and trial.revised_response_2 is None:
-        needs_revise_level = 2
-
-    can_request_hint1 = hint1 is None
-    can_request_hint2 = hint1 is not None and trial.revised_response_1 is not None and hint2 is None
+    if eval2 is None or eval2.is_adequate:
+        return templates.TemplateResponse(
+            request,
+            "intervention_item.html",
+            {**base_context, "stage": "adequate", "first_response": trial.first_response},
+        )
 
     return templates.TemplateResponse(
         request,
         "intervention_item.html",
         {
-            "item": item,
-            "trial_id": trial.id,
-            "progress_current": trial.item_order,
-            "progress_total": planned_item_count,
-            "stage": "hint_flow",
+            **base_context,
+            "stage": "example_wait_final_revision",
             "first_response": trial.first_response,
-            "hints_shown": hints_shown,
-            "needs_revise_level": needs_revise_level,
-            "can_request_hint1": can_request_hint1,
-            "can_request_hint2": can_request_hint2,
-            "example_used": trial.example_used,
-            "example_text": item.verified_example if trial.example_used else None,
-            **session_label,
+            "example_text": item.verified_example,
         },
     )
 
@@ -215,26 +216,11 @@ def session_first_response(
             trial.safety_flag = flag
         db.commit()
 
-    return RedirectResponse(url="/session", status_code=303)
-
-
-@router.post("/session/hint")
-def session_hint(
-    request: Request,
-    trial_id: int = Form(...),
-    hint_level: int = Form(...),
-    db: Session = Depends(get_db),
-):
-    participant = _current_participant(request, db)
-    if not participant:
-        return RedirectResponse(url="/login", status_code=303)
-
-    trial = db.get(TrialResponse, trial_id)
-    if trial and not trial.completed:
-        phase_config = db.get(PhaseConfig, trial.phase)
-        if phase_config and phase_config.ai_hint_enabled:
-            item = db.get(Item, trial.item_id)
-            request_hint(db, trial, item, hint_level)
+        if not flag:
+            phase_config = db.get(PhaseConfig, trial.phase)
+            if phase_config and phase_config.ai_hint_enabled:
+                item = db.get(Item, trial.item_id)
+                evaluate_answer(db, trial, item, hint_level=1, student_response=response_text)
 
     return RedirectResponse(url="/session", status_code=303)
 
@@ -252,32 +238,37 @@ def session_revise(
         return RedirectResponse(url="/login", status_code=303)
 
     trial = db.get(TrialResponse, trial_id)
-    if trial and not trial.completed:
-        if hint_level == 1:
-            trial.revised_response_1 = response_text
-        elif hint_level == 2:
-            trial.revised_response_2 = response_text
-        flag = detect_safety_flag(response_text)
+    if not trial or trial.completed:
+        return RedirectResponse(url="/session", status_code=303)
+
+    flag = detect_safety_flag(response_text)
+
+    if hint_level == 1:
+        # revision after the step-2 hint: save it, then let the AI check it again
+        trial.revised_response_1 = response_text
         if flag:
             trial.safety_flag = flag
         db.commit()
 
-    return RedirectResponse(url="/session", status_code=303)
+        if not flag:
+            phase_config = db.get(PhaseConfig, trial.phase)
+            if phase_config and phase_config.ai_hint_enabled:
+                item = db.get(Item, trial.item_id)
+                is_adequate, _ = evaluate_answer(
+                    db, trial, item, hint_level=2, student_response=response_text
+                )
+                if not is_adequate:
+                    trial.example_used = True
+                    db.commit()
 
-
-@router.post("/session/example")
-def session_example(
-    request: Request,
-    trial_id: int = Form(...),
-    db: Session = Depends(get_db),
-):
-    participant = _current_participant(request, db)
-    if not participant:
-        return RedirectResponse(url="/login", status_code=303)
-
-    trial = db.get(TrialResponse, trial_id)
-    if trial and not trial.completed:
-        trial.example_used = True
+    elif hint_level == 2:
+        # final revision after seeing the verified example: save and finalize, no further AI check
+        trial.revised_response_2 = response_text
+        if flag:
+            trial.safety_flag = flag
+        else:
+            trial.final_response = response_text
+            trial.completed = True
         db.commit()
 
     return RedirectResponse(url="/session", status_code=303)

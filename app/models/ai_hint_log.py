@@ -14,6 +14,7 @@ class AiHintLog(Base):
     model_name = Column(String, nullable=True)
     api_response_raw = Column(String, nullable=True)
     hint_message = Column(String, nullable=True)
+    is_adequate = Column(Boolean, nullable=True)  # AI 판단: 응답이 적절한가? - 쫌 관대하게
     fallback_used = Column(Boolean, nullable=False, default=False)
     contains_scoring = Column(Boolean, nullable=False, default=False)
     contains_full_answer = Column(Boolean, nullable=False, default=False)

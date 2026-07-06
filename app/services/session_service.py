@@ -179,3 +179,12 @@ def get_latest_hint_message(db: DbSession, trial_id: int, hint_level: int) -> st
         .first()
     )
     return log.hint_message if log else None
+
+
+def get_latest_evaluation(db: DbSession, trial_id: int, hint_level: int) -> AiHintLog | None:
+    return (
+        db.query(AiHintLog)
+        .filter_by(trial_id=trial_id, hint_level=hint_level)
+        .order_by(AiHintLog.created_at.desc())
+        .first()
+    )
