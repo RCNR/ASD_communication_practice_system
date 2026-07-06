@@ -6,7 +6,7 @@ class Settings(BaseSettings):
     DEBUG: bool = False
     OPENAI_API_KEY: str = "${OPENAI_API_KEY}"
     OPENAI_MODEL: str = "gpt-4o-mini"
-    SECRET_KEY: str = "dev-secret-change-me"
+    SECRET_KEY: str = "${SECRET_KEY}"
     ADMIN_PASSWORD: str = "${ADMIN_PASSWORD}"
 
     class Config:
