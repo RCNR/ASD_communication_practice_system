@@ -4,48 +4,45 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <link rel="stylesheet" href="/static/style.css" />
-  <title>{{ participant.participant_code }} 응답 - ASD Communication Practice System</title>
+  <title>전체 점수판 - ASD Communication Practice System</title>
 </head>
 <body>
   <div class="card card-wide">
     <p class="nav"><a href="/admin">&larr; 참여자 목록</a></p>
-    <h1>{{ participant.participant_code }} 응답 기록</h1>
+    <h1>중재 단계 전체 점수판</h1>
+
+    <form method="get" action="/admin/scores">
+      <label for="participant_code">참여자</label>
+      <select id="participant_code" name="participant_code" onchange="this.form.submit()">
+        <option value=""{% if not selected_participant_code %} selected{% endif %}>전체</option>
+        {% for code in participant_codes %}
+        <option value="{{ code }}"{% if code == selected_participant_code %} selected{% endif %}>{{ code }}</option>
+        {% endfor %}
+      </select>
+      <noscript><button type="submit">조회</button></noscript>
+    </form>
 
     <table>
       <tr>
-        <th>단계</th>
+        <th>참여자 코드</th>
         <th>회기</th>
         <th>문항 순서</th>
         <th>문항</th>
-        <th>첫 답장</th>
         <th>1단계 점수</th>
-        <th>1단계 힌트</th>
-        <th>수정 답장 1</th>
         <th>2단계 점수</th>
-        <th>2단계 힌트</th>
-        <th>수정 답장 2</th>
         <th>예시 사용</th>
-        <th>최종 답장</th>
         <th>완료</th>
-        <th>안전 플래그</th>
       </tr>
-      {% for row in trial_rows %}
-      <tr{% if row.safety_flag %} class="flagged"{% endif %}>
-        <td>{{ row.phase }}</td>
+      {% for row in score_rows %}
+      <tr>
+        <td>{{ row.participant_code }}</td>
         <td>{{ row.session_number }}</td>
         <td>{{ row.item_order }}</td>
         <td>{{ row.item_text }}</td>
-        <td>{{ row.first_response or "" }}</td>
         <td>{{ row.score1 if row.score1 is not none else "" }}</td>
-        <td>{{ row.hint1 or "" }}</td>
-        <td>{{ row.revised_response_1 or "" }}</td>
         <td>{{ row.score2 if row.score2 is not none else "" }}</td>
-        <td>{{ row.hint2 or "" }}</td>
-        <td>{{ row.revised_response_2 or "" }}</td>
         <td>{{ "예" if row.example_used else "" }}</td>
-        <td>{{ row.final_response or "" }}</td>
         <td>{{ "완료" if row.completed else "" }}</td>
-        <td>{% if row.safety_flag %}<span class="badge">{{ row.safety_flag }}</span>{% endif %}</td>
       </tr>
       {% endfor %}
     </table>
