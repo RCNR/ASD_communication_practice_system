@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import random
 from datetime import datetime, timedelta, timezone
 
 from sqlalchemy.orm import Session as DbSession
@@ -133,13 +134,26 @@ def get_or_create_active_session(db: DbSession, participant: Participant) -> Stu
     db.flush()
 
     use_type = PHASE_USE_TYPE[phase]
-    candidate_items = (
-        db.query(Item)
-        .filter_by(use_type=use_type, status="approved")
-        .order_by(Item.item_id)
-        .limit(planned_item_count)
+    pool = db.query(Item).filter_by(use_type=use_type, status="approved").all()
+
+    relevant_phases = [p for p, u in PHASE_USE_TYPE.items() if u == use_type]
+    used_item_ids = {
+        item_id
+        for (item_id,) in db.query(SessionItem.item_id)
+        .join(StudySession, SessionItem.session_id == StudySession.id)
+        .filter(
+            StudySession.participant_code == participant.participant_code,
+            StudySession.phase.in_(relevant_phases),
+        )
         .all()
-    )
+    }
+    unused_pool = [item for item in pool if item.item_id not in used_item_ids]
+
+    # Draw without replacement from items not yet used by this participant in
+    # this use_type. Once too few remain to fill a session, reshuffle from the
+    # full pool (repeats become possible again) rather than running short.
+    draw_pool = unused_pool if len(unused_pool) >= planned_item_count else pool
+    candidate_items = random.sample(draw_pool, min(planned_item_count, len(draw_pool)))
     for order, item in enumerate(candidate_items, start=1):
         db.add(SessionItem(session_id=new_session.id, item_id=item.item_id, item_order=order))
         db.add(
