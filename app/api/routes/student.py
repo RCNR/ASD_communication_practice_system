@@ -96,7 +96,7 @@ def _render_intervention_item(
             **base_context,
             "stage": "example_wait_final_revision",
             "first_response": trial.first_response,
-            "example_text": item.verified_example,
+            "example_text": item.example_score_2,
         },
     )
 

@@ -10,13 +10,18 @@ from app.models.item import Item
 
 REQUIRED_COLUMNS = ["item_id", "use_type", "item_text"]
 OPTIONAL_COLUMNS = [
+    "ssis_domain",
     "situation_type",
+    "sub_response_type",
+    "difficulty",
+    "primary_dv",
     "emotion_tag",
     "target_response",
     "hint_template",
-    "verified_example",
+    "example_score_2",
     "example_score_1",
     "example_score_0",
+    "scoring_criteria",
     "cvi_score",
     "status",
 ]
@@ -73,14 +78,19 @@ def upsert_items(db: DbSession, rows: list[dict]) -> tuple[int, list[str]]:
             Item(
                 item_id=row["item_id"],
                 use_type=row["use_type"],
+                ssis_domain=row.get("ssis_domain") or None,
                 situation_type=row.get("situation_type") or None,
+                sub_response_type=row.get("sub_response_type") or None,
+                difficulty=row.get("difficulty") or None,
+                primary_dv=row.get("primary_dv") or None,
                 emotion_tag=row.get("emotion_tag") or None,
                 item_text=row["item_text"],
                 target_response=row.get("target_response") or None,
                 hint_template=row.get("hint_template") or None,
-                verified_example=row.get("verified_example") or None,
+                example_score_2=row.get("example_score_2") or None,
                 example_score_1=row.get("example_score_1") or None,
                 example_score_0=row.get("example_score_0") or None,
+                scoring_criteria=row.get("scoring_criteria") or None,
                 cvi_score=cvi_score,
                 status=row.get("status") or "approved",
             )
