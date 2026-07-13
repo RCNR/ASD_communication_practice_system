@@ -16,6 +16,7 @@ from app.models.participant import Participant
 from app.models.phase_config import PhaseConfig
 from app.models.session import StudySession
 from app.models.session_fidelity_check import SessionFidelityCheck
+from app.models.session_item import SessionItem
 from app.models.trial_response import TrialResponse
 from app.services.item_import_service import parse_item_file, upsert_items
 from app.services.session_service import PHASE_ORDER, get_latest_evaluation, get_latest_hint_message
@@ -387,6 +388,33 @@ async def admin_items_upload(request: Request, file: UploadFile, db: Session = D
 
     items = db.query(Item).order_by(Item.item_id).all()
     return templates.TemplateResponse(request, "admin_items.html", {"items": items, "result": result})
+
+
+@router.post("/items/delete-all")
+def admin_items_delete_all(request: Request, db: Session = Depends(get_db)):
+    redirect = _require_admin(request)
+    if redirect:
+        return redirect
+
+    used_item_ids = {item_id for (item_id,) in db.query(SessionItem.item_id).distinct().all()}
+
+    query = db.query(Item)
+    if used_item_ids:
+        query = query.filter(Item.item_id.notin_(used_item_ids))
+    to_delete = query.all()
+    deleted_count = len(to_delete)
+    for item in to_delete:
+        db.delete(item)
+    db.commit()
+
+    message = f"{deleted_count}개 문항을 삭제했습니다."
+    if used_item_ids:
+        message += f" (이미 회기에 배정된 {len(used_item_ids)}개 문항은 삭제하지 않았습니다.)"
+
+    items = db.query(Item).order_by(Item.item_id).all()
+    return templates.TemplateResponse(
+        request, "admin_items.html", {"items": items, "result": None, "delete_message": message}
+    )
 
 
 FIDELITY_FIELDS = [

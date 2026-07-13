@@ -19,6 +19,15 @@
       <button type="submit">업로드</button>
     </form>
 
+    <form method="post" action="/admin/items/delete-all"
+          onsubmit="return confirm('문항을 전체 삭제할까요? 되돌릴 수 없습니다.');">
+      <button type="submit">전체 삭제</button>
+    </form>
+
+    {% if delete_message %}
+    <p>{{ delete_message }}</p>
+    {% endif %}
+
     {% if result %}
     <div>
       <p>{{ result.upserted }}개 문항이 반영되었습니다.</p>
