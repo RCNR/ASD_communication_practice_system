@@ -15,6 +15,8 @@ OPTIONAL_COLUMNS = [
     "target_response",
     "hint_template",
     "verified_example",
+    "example_score_1",
+    "example_score_0",
     "cvi_score",
     "status",
 ]
@@ -77,6 +79,8 @@ def upsert_items(db: DbSession, rows: list[dict]) -> tuple[int, list[str]]:
                 target_response=row.get("target_response") or None,
                 hint_template=row.get("hint_template") or None,
                 verified_example=row.get("verified_example") or None,
+                example_score_1=row.get("example_score_1") or None,
+                example_score_0=row.get("example_score_0") or None,
                 cvi_score=cvi_score,
                 status=row.get("status") or "approved",
             )

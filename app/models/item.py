@@ -13,6 +13,8 @@ class Item(Base):
     item_text = Column(String, nullable=False)
     target_response = Column(String, nullable=True)
     hint_template = Column(String, nullable=True)
-    verified_example = Column(String, nullable=True)
+    verified_example = Column(String, nullable=True)  # 2점 적합 답안 예시
+    example_score_1 = Column(String, nullable=True)  # 1점 부분 답안 예시
+    example_score_0 = Column(String, nullable=True)  # 0점 부적합 답안 예시
     cvi_score = Column(Float, nullable=True)
     status = Column(String, nullable=False, default="approved")  # approved / revise / deleted

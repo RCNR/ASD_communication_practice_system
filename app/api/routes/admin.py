@@ -18,7 +18,7 @@ from app.models.session import StudySession
 from app.models.session_fidelity_check import SessionFidelityCheck
 from app.models.trial_response import TrialResponse
 from app.services.item_import_service import parse_item_file, upsert_items
-from app.services.session_service import PHASE_ORDER, get_latest_hint_message
+from app.services.session_service import PHASE_ORDER, get_latest_evaluation, get_latest_hint_message
 
 router = APIRouter(prefix="/admin")
 templates = Jinja2Templates(directory="app/templates")
@@ -282,6 +282,8 @@ def admin_participant_detail(request: Request, participant_code: str, db: Sessio
 
     trial_rows = []
     for trial, study_session, item in trials:
+        eval1 = get_latest_evaluation(db, trial.id, 1)
+        eval2 = get_latest_evaluation(db, trial.id, 2)
         trial_rows.append(
             {
                 "phase": study_session.phase,
@@ -289,8 +291,10 @@ def admin_participant_detail(request: Request, participant_code: str, db: Sessio
                 "item_order": trial.item_order,
                 "item_text": item.item_text,
                 "first_response": trial.first_response,
+                "score1": eval1.score_level if eval1 else None,
                 "hint1": get_latest_hint_message(db, trial.id, 1),
                 "revised_response_1": trial.revised_response_1,
+                "score2": eval2.score_level if eval2 else None,
                 "hint2": get_latest_hint_message(db, trial.id, 2),
                 "revised_response_2": trial.revised_response_2,
                 "example_used": trial.example_used,
@@ -304,6 +308,56 @@ def admin_participant_detail(request: Request, participant_code: str, db: Sessio
         request,
         "admin_participant_detail.html",
         {"participant": participant, "trial_rows": trial_rows},
+    )
+
+
+@router.get("/scores")
+def admin_scores(request: Request, participant_code: str = "", db: Session = Depends(get_db)):
+    redirect = _require_admin(request)
+    if redirect:
+        return redirect
+
+    participant_codes = [p.participant_code for p in db.query(Participant).order_by(Participant.participant_code)]
+
+    query = (
+        db.query(TrialResponse, StudySession, Item, Participant)
+        .join(StudySession, TrialResponse.session_id == StudySession.id)
+        .join(Item, TrialResponse.item_id == Item.item_id)
+        .join(Participant, StudySession.participant_code == Participant.participant_code)
+        .filter(StudySession.phase == "intervention")
+    )
+    if participant_code:
+        query = query.filter(Participant.participant_code == participant_code)
+
+    trials = query.order_by(
+        Participant.participant_code, StudySession.session_number, TrialResponse.item_order
+    ).all()
+
+    score_rows = []
+    for trial, study_session, item, participant in trials:
+        eval1 = get_latest_evaluation(db, trial.id, 1)
+        eval2 = get_latest_evaluation(db, trial.id, 2)
+        score_rows.append(
+            {
+                "participant_code": participant.participant_code,
+                "session_number": study_session.session_number,
+                "item_order": trial.item_order,
+                "item_text": item.item_text,
+                "score1": eval1.score_level if eval1 else None,
+                "score2": eval2.score_level if eval2 else None,
+                "example_used": trial.example_used,
+                "completed": trial.completed,
+            }
+        )
+
+    return templates.TemplateResponse(
+        request,
+        "admin_scores.html",
+        {
+            "score_rows": score_rows,
+            "participant_codes": participant_codes,
+            "selected_participant_code": participant_code,
+        },
     )
 
 

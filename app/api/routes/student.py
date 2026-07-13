@@ -61,7 +61,7 @@ def _render_intervention_item(
 
     eval1 = get_latest_evaluation(db, trial.id, 1)
 
-    if eval1 is None or eval1.is_adequate:
+    if eval1 is None or eval1.score_level == 2:
         return templates.TemplateResponse(
             request,
             "intervention_item.html",
@@ -82,7 +82,7 @@ def _render_intervention_item(
 
     eval2 = get_latest_evaluation(db, trial.id, 2)
 
-    if eval2 is None or eval2.is_adequate:
+    if eval2 is None or eval2.score_level == 2:
         return templates.TemplateResponse(
             request,
             "intervention_item.html",
@@ -254,10 +254,10 @@ def session_revise(
             phase_config = db.get(PhaseConfig, trial.phase)
             if phase_config and phase_config.ai_hint_enabled:
                 item = db.get(Item, trial.item_id)
-                is_adequate, _ = evaluate_answer(
+                score, _ = evaluate_answer(
                     db, trial, item, hint_level=2, student_response=response_text
                 )
-                if not is_adequate:
+                if score != 2:
                     trial.example_used = True
                     db.commit()
 
