@@ -1,0 +1,15 @@
+[Unit]
+Description=ASD Communication Practice System
+After=network.target
+
+[Service]
+Type=simple
+User=ubuntu
+WorkingDirectory=/opt/app
+EnvironmentFile=/opt/app/.env
+ExecStart=/opt/app/venv/bin/uvicorn app.main:app --host 127.0.0.1 --port 8000
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
