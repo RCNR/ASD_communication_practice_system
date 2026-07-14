@@ -97,14 +97,31 @@ def check_wait_gate(db: DbSession, participant: Participant) -> datetime | None:
     return available_at
 
 
+def get_active_session(db: DbSession, participant: Participant) -> StudySession | None:
+    return (
+        db.query(StudySession)
+        .filter_by(
+            participant_code=participant.participant_code,
+            phase=participant.current_phase,
+            status="in_progress",
+        )
+        .first()
+    )
+
+
+def get_next_session_number(db: DbSession, participant: Participant) -> int:
+    return (
+        db.query(StudySession)
+        .filter_by(participant_code=participant.participant_code, phase=participant.current_phase)
+        .count()
+        + 1
+    )
+
+
 def get_or_create_active_session(db: DbSession, participant: Participant) -> StudySession | None:
     phase = participant.current_phase
 
-    active_session = (
-        db.query(StudySession)
-        .filter_by(participant_code=participant.participant_code, phase=phase, status="in_progress")
-        .first()
-    )
+    active_session = get_active_session(db, participant)
     if active_session:
         return active_session
 

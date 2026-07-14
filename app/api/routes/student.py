@@ -18,8 +18,10 @@ from app.services.session_service import (
     advance_phase_if_needed,
     check_wait_gate,
     completed_session_count,
+    get_active_session,
     get_current_trial,
     get_latest_evaluation,
+    get_next_session_number,
     get_or_create_active_session,
     get_target_session_count,
     mark_session_completed,
@@ -113,9 +115,21 @@ def session_screen(request: Request, db: Session = Depends(get_db)):
             request, "waiting.html", {"available_at_iso": available_at.isoformat()}
         )
 
-    study_session = get_or_create_active_session(db, participant)
+    study_session = get_active_session(db, participant)
     if study_session is None:
-        return templates.TemplateResponse(request, "study_complete.html")
+        target = get_target_session_count(participant)
+        if completed_session_count(db, participant) >= target:
+            return templates.TemplateResponse(request, "study_complete.html")
+
+        return templates.TemplateResponse(
+            request,
+            "session_gate.html",
+            {
+                "phase_label": PHASE_LABEL[participant.current_phase],
+                "session_number": get_next_session_number(db, participant),
+                "session_target": target,
+            },
+        )
 
     trial = get_current_trial(db, study_session)
 
@@ -167,6 +181,18 @@ def session_screen(request: Request, db: Session = Depends(get_db)):
             **session_label,
         },
     )
+
+
+@router.post("/session/start")
+def session_start(request: Request, db: Session = Depends(get_db)):
+    participant = _current_participant(request, db)
+    if not participant:
+        return RedirectResponse(url="/login", status_code=303)
+
+    if check_wait_gate(db, participant) is None:
+        get_or_create_active_session(db, participant)
+
+    return RedirectResponse(url="/session", status_code=303)
 
 
 @router.post("/session/respond")
