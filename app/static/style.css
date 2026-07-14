@@ -52,6 +52,27 @@ h1 {
   color: var(--text);
 }
 
+.home-wrapper {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 100%;
+  max-width: 560px;
+}
+
+.brand-title {
+  text-align: center;
+  margin: 0 0 30px;
+  font-size: 2.0rem; 
+}
+
+.brand-logo {
+  display: block;
+  width: 20%;
+  height: auto;
+  margin-bottom: 32px;
+}
+
 p {
   margin: 0 0 16px;
 }
