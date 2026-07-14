@@ -73,6 +73,31 @@ h1 {
   margin-bottom: 32px;
 }
 
+.home-icon-btn {
+  position: fixed;
+  top: 20px;
+  left: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 4.6rem;
+  height: 4.6rem;
+  border-radius: 8px;
+  background: var(--card-bg);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+  color: var(--accent);
+  text-decoration: none;
+}
+
+.home-icon-btn:hover {
+  background: #f2f8f9;
+}
+
+.home-icon-btn svg {
+  width: 25px;
+  height: 25px;
+}
+
 p {
   margin: 0 0 16px;
 }
