@@ -20,7 +20,7 @@
 
     {% if stage == "first" %}
     <p>친구에게 보낼 답장을 먼저 써보세요.</p>
-    <form method="post" action="/session/first-response">
+    <form method="post" action="/session/first-response" data-ai-loading>
       <input type="hidden" name="trial_id" value="{{ trial_id }}" />
       <textarea name="response_text" rows="4" required></textarea>
       <button type="submit">첫 답장 제출</button>
@@ -44,7 +44,7 @@
       <span class="label">힌트</span>
       {{ feedback_message }}
     </div>
-    <form method="post" action="/session/revise">
+    <form method="post" action="/session/revise" data-ai-loading>
       <input type="hidden" name="trial_id" value="{{ trial_id }}" />
       <input type="hidden" name="hint_level" value="1" />
       <textarea name="response_text" rows="4" required></textarea>
@@ -66,5 +66,21 @@
     {% endif %}
     {% endif %}
   </div>
+
+  <div id="ai-loading-overlay" class="ai-loading-overlay" hidden>
+    <div class="ai-loading-box">
+      <img class="ai-loading-icon" src="/static/ai-agent.png" alt="AI 판단 중" />
+      <p>AI가 판단 중이에요...</p>
+    </div>
+  </div>
+
+  <script>
+    const aiLoadingOverlay = document.getElementById("ai-loading-overlay");
+    document.querySelectorAll("form[data-ai-loading]").forEach((form) => {
+      form.addEventListener("submit", () => {
+        aiLoadingOverlay.hidden = false;
+      });
+    });
+  </script>
 </body>
 </html>

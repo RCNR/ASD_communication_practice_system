@@ -98,6 +98,45 @@ h1 {
   height: 25px;
 }
 
+.ai-loading-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(255, 255, 255, 0.9);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.ai-loading-overlay[hidden] {
+  display: none;
+}
+
+.ai-loading-box {
+  text-align: center;
+}
+
+.ai-loading-icon {
+  width: 72px;
+  height: auto;
+  animation: ai-loading-bounce 1s infinite ease-in-out;
+}
+
+.ai-loading-box p {
+  margin: 12px 0 0;
+  font-weight: 600;
+  color: var(--text);
+}
+
+@keyframes ai-loading-bounce {
+  0%, 100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-10px);
+  }
+}
+
 p {
   margin: 0 0 16px;
 }
