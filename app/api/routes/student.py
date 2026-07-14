@@ -88,7 +88,12 @@ def _render_intervention_item(
         return templates.TemplateResponse(
             request,
             "intervention_item.html",
-            {**base_context, "stage": "adequate", "first_response": trial.first_response},
+            {
+                **base_context,
+                "stage": "adequate",
+                "first_response": trial.first_response,
+                "revised_response_1": trial.revised_response_1,
+            },
         )
 
     return templates.TemplateResponse(
@@ -98,6 +103,7 @@ def _render_intervention_item(
             **base_context,
             "stage": "example_wait_final_revision",
             "first_response": trial.first_response,
+            "revised_response_1": trial.revised_response_1,
             "example_text": item.example_score_2,
         },
     )

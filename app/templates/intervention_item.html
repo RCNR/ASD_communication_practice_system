@@ -28,6 +28,9 @@
 
     {% else %}
     <p><span class="first-response-label">내 첫 답장</span>{{ first_response }}</p>
+    {% if revised_response_1 %}
+    <p><span class="first-response-label">두 번째 답장</span>{{ revised_response_1 }}</p>
+    {% endif %}
 
     {% if stage == "adequate" %}
     <p>잘했어요! 다음 문항으로 넘어가볼까요?</p>
