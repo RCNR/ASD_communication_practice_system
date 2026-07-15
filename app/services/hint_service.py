@@ -61,6 +61,76 @@ RESPONSE_JSON_SCHEMA = {
 MAX_MESSAGE_LENGTH = 120
 PERSONAL_INFO_KEYWORDS = ["이름이 뭐", "몇 살", "나이가", "학교가 어디", "전화번호", "사는 곳", "주소가"]
 
+CONTENT_SAFETY_SYSTEM_PROMPT = """너는 자폐성장애 학생이 쓴 대화 연습 답장에 안전 문제가 있는지만 판단하는
+필터다. 채점이나 힌트 작성은 네 역할이 아니다.
+
+아래 중 하나에 명확히 해당하면 그 항목명을 반환하고, 아니면 "none"을 반환한다.
+- self_harm: 자해, 자살에 대한 생각이나 의도 표현
+- abuse: 폭행, 학대를 당하고 있다는 고백
+- violence: 타인에 대한 폭력적 표현
+- inappropriate: 욕설, 비속어
+- sexual: 성적인 표현
+- privacy: 실명, 전화번호, 주소, 학교명 등 개인정보 노출
+
+판단이 애매하면 관대하게 "none"으로 본다. 자연스러운 감정 표현이나 이 항목과 무관한 내용은 전부 none이다.
+특히 self_harm, abuse는 참여자 본인의 안전과 직결되므로 조금이라도 암시가 있으면 놓치지 말고 표시한다.
+반드시 JSON 형식으로만 응답한다."""
+
+CONTENT_SAFETY_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "safety_flag": {
+            "type": "string",
+            "enum": ["none", "self_harm", "abuse", "violence", "inappropriate", "sexual", "privacy"],
+        },
+    },
+    "required": ["safety_flag"],
+    "additionalProperties": False,
+}
+
+# All flagged categories go through the same rewrite loop (ask the student to
+# rewrite, with a retry cap - see student.py's SAFETY_REWRITE_LIMIT). Once the
+# cap is exceeded for any category - including self_harm/abuse - the trial
+# escalates to the safety-warning stop screen, so a repeated disclosure still
+# eventually reaches a human even though it isn't stopped on first mention.
+REWRITE_CATEGORIES = ("self_harm", "abuse", "violence", "inappropriate", "sexual", "privacy")
+
+CHECK_FAILED = "check_failed"
+
+
+def check_content_safety(student_response: str) -> str | None:
+    """AI-based safety check covering all categories in REWRITE_CATEGORIES.
+    Returns the flag name, CHECK_FAILED if the API call/parse failed, or None
+    if the text is clean.
+
+    There is no keyword-based backstop for any category anymore (a deliberate
+    product decision to move self_harm/abuse detection to the AI too, and to
+    have them go through the same rewrite loop as the other categories rather
+    than stopping immediately). On failure this returns CHECK_FAILED rather
+    than silently passing the text through, so the caller can ask the student
+    to resubmit instead of risking a missed self_harm/abuse disclosure."""
+    try:
+        response = client.chat.completions.create(
+            model=settings.OPENAI_MODEL,
+            messages=[
+                {"role": "system", "content": CONTENT_SAFETY_SYSTEM_PROMPT},
+                {"role": "user", "content": student_response},
+            ],
+            response_format={
+                "type": "json_schema",
+                "json_schema": {
+                    "name": "content_safety",
+                    "schema": CONTENT_SAFETY_SCHEMA,
+                    "strict": True,
+                },
+            },
+        )
+        parsed = json.loads(response.choices[0].message.content)
+        flag = parsed.get("safety_flag")
+        return flag if flag in REWRITE_CATEGORIES else None
+    except Exception:
+        return CHECK_FAILED
+
 
 def _validate_parsed(parsed: dict, item: Item) -> bool:
     if parsed.get("contains_full_answer") is not False:

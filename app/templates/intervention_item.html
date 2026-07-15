@@ -18,6 +18,18 @@
       <p>"{{ item.item_text }}"</p>
     </div>
 
+    {% if rewrite_notice %}
+    <div class="warning-box">
+      <p style="margin-bottom: 0;">적절하지 않은 내용이 있어요. 다시 작성해주세요.</p>
+    </div>
+    {% endif %}
+
+    {% if retry_notice %}
+    <div class="warning-box">
+      <p style="margin-bottom: 0;">일시적인 오류가 발생했어요. 다시 제출해주세요.</p>
+    </div>
+    {% endif %}
+
     {% if stage == "first" %}
     <p>친구에게 보낼 답장을 먼저 써보세요.</p>
     <form method="post" action="/session/first-response" data-ai-loading>

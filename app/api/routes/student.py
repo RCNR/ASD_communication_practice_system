@@ -12,8 +12,11 @@ from app.models.item import Item
 from app.models.participant import Participant
 from app.models.phase_config import PhaseConfig
 from app.models.trial_response import TrialResponse
-from app.services.hint_service import evaluate_answer
-from app.services.safety_service import detect_safety_flag
+from app.services.hint_service import (
+    CHECK_FAILED,
+    check_content_safety,
+    evaluate_answer,
+)
 from app.services.session_service import (
     advance_phase_if_needed,
     check_wait_gate,
@@ -32,6 +35,35 @@ templates = Jinja2Templates(directory="app/templates")
 
 PHASE_LABEL = {"baseline": "기초선", "intervention": "중재", "maintenance": "유지"}
 
+SAFETY_REWRITE_LIMIT = 3
+
+
+def _apply_content_safety(db: Session, trial: TrialResponse, response_text: str) -> str | None:
+    """Runs the AI safety check for a piece of intervention-phase text.
+    Returns a redirect path if the submission should be rejected (ask to
+    rewrite, or stop once the rewrite cap is exceeded), or None if the text
+    is clean and the caller should proceed with saving it.
+
+    Every flagged category - including self_harm/abuse - goes through the
+    same rewrite loop rather than stopping on first mention; the trial only
+    escalates to the safety-warning screen once SAFETY_REWRITE_LIMIT is
+    exceeded."""
+    content_flag = check_content_safety(response_text)
+
+    if content_flag == CHECK_FAILED:
+        return "/session?retry_notice=1"
+
+    if content_flag:
+        trial.safety_rewrite_count += 1
+        if trial.safety_rewrite_count > SAFETY_REWRITE_LIMIT:
+            trial.safety_flag = content_flag
+            db.commit()
+            return "/session"
+        db.commit()
+        return "/session?rewrite_notice=1"
+
+    return None
+
 
 def _current_participant(request: Request, db: Session) -> Participant | None:
     participant_code = request.session.get("participant_code")
@@ -46,6 +78,8 @@ def _render_intervention_item(
     trial: TrialResponse,
     planned_item_count: int,
     session_label: dict,
+    rewrite_notice: bool = False,
+    retry_notice: bool = False,
 ):
     item = db.get(Item, trial.item_id)
     base_context = {
@@ -53,6 +87,8 @@ def _render_intervention_item(
         "trial_id": trial.id,
         "progress_current": trial.item_order,
         "progress_total": planned_item_count,
+        "rewrite_notice": rewrite_notice,
+        "retry_notice": retry_notice,
         **session_label,
     }
 
@@ -172,7 +208,13 @@ def session_screen(request: Request, db: Session = Depends(get_db)):
 
     if study_session.phase == "intervention":
         return _render_intervention_item(
-            request, db, trial, study_session.planned_item_count, session_label
+            request,
+            db,
+            trial,
+            study_session.planned_item_count,
+            session_label,
+            rewrite_notice=request.query_params.get("rewrite_notice") == "1",
+            retry_notice=request.query_params.get("retry_notice") == "1",
         )
 
     item = db.get(Item, trial.item_id)
@@ -216,12 +258,8 @@ def session_respond(
     if trial and not trial.completed:
         trial.first_response = response_text
         trial.first_response_submitted_at = datetime.now(timezone.utc)
-        flag = detect_safety_flag(response_text)
-        if flag:
-            trial.safety_flag = flag
-        else:
-            trial.final_response = response_text
-            trial.completed = True
+        trial.final_response = response_text
+        trial.completed = True
         db.commit()
 
     return RedirectResponse(url="/session", status_code=303)
@@ -240,19 +278,22 @@ def session_first_response(
 
     trial = db.get(TrialResponse, trial_id)
     if trial and not trial.completed and trial.first_response is None:
+        phase_config = db.get(PhaseConfig, trial.phase)
+        ai_enabled = bool(phase_config and phase_config.ai_hint_enabled)
+
+        if ai_enabled:
+            redirect_url = _apply_content_safety(db, trial, response_text)
+            if redirect_url:
+                return RedirectResponse(url=redirect_url, status_code=303)
+
         trial.first_response = response_text
         trial.first_response_started_at = trial.first_response_started_at or datetime.now(timezone.utc)
         trial.first_response_submitted_at = datetime.now(timezone.utc)
-        flag = detect_safety_flag(response_text)
-        if flag:
-            trial.safety_flag = flag
         db.commit()
 
-        if not flag:
-            phase_config = db.get(PhaseConfig, trial.phase)
-            if phase_config and phase_config.ai_hint_enabled:
-                item = db.get(Item, trial.item_id)
-                evaluate_answer(db, trial, item, hint_level=1, student_response=response_text)
+        if ai_enabled:
+            item = db.get(Item, trial.item_id)
+            evaluate_answer(db, trial, item, hint_level=1, student_response=response_text)
 
     return RedirectResponse(url="/session", status_code=303)
 
@@ -273,34 +314,33 @@ def session_revise(
     if not trial or trial.completed:
         return RedirectResponse(url="/session", status_code=303)
 
-    flag = detect_safety_flag(response_text)
+    phase_config = db.get(PhaseConfig, trial.phase)
+    ai_enabled = bool(phase_config and phase_config.ai_hint_enabled)
+
+    if ai_enabled:
+        redirect_url = _apply_content_safety(db, trial, response_text)
+        if redirect_url:
+            return RedirectResponse(url=redirect_url, status_code=303)
 
     if hint_level == 1:
         # revision after the step-2 hint: save it, then let the AI check it again
         trial.revised_response_1 = response_text
-        if flag:
-            trial.safety_flag = flag
         db.commit()
 
-        if not flag:
-            phase_config = db.get(PhaseConfig, trial.phase)
-            if phase_config and phase_config.ai_hint_enabled:
-                item = db.get(Item, trial.item_id)
-                score, _ = evaluate_answer(
-                    db, trial, item, hint_level=2, student_response=response_text
-                )
-                if score != 2:
-                    trial.example_used = True
-                    db.commit()
+        if ai_enabled:
+            item = db.get(Item, trial.item_id)
+            score, _ = evaluate_answer(
+                db, trial, item, hint_level=2, student_response=response_text
+            )
+            if score != 2:
+                trial.example_used = True
+                db.commit()
 
     elif hint_level == 2:
         # final revision after seeing the verified example: save and finalize, no further AI check
         trial.revised_response_2 = response_text
-        if flag:
-            trial.safety_flag = flag
-        else:
-            trial.final_response = response_text
-            trial.completed = True
+        trial.final_response = response_text
+        trial.completed = True
         db.commit()
 
     return RedirectResponse(url="/session", status_code=303)

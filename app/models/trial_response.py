@@ -19,4 +19,5 @@ class TrialResponse(Base):
     final_response = Column(String, nullable=True)
     example_used = Column(Boolean, nullable=False, default=False)
     completed = Column(Boolean, nullable=False, default=False)
-    safety_flag = Column(String, nullable=True)  # self_harm / violence / abuse / privacy / inappropriate
+    safety_flag = Column(String, nullable=True)  # self_harm / violence / abuse / privacy / inappropriate / sexual
+    safety_rewrite_count = Column(Integer, nullable=False, default=0)
