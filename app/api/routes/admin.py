@@ -129,7 +129,7 @@ def admin_participant_new_submit(
     intervention_wait_h: int = Form(0),
     intervention_wait_m: int = Form(0),
     intervention_wait_s: int = Form(0),
-    maintenance_wait_d: int = Form(14),
+    maintenance_wait_d: int = Form(0),
     maintenance_wait_h: int = Form(0),
     maintenance_wait_m: int = Form(0),
     maintenance_wait_s: int = Form(0),
