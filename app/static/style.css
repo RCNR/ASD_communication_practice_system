@@ -62,10 +62,16 @@ h1 {
   max-width: 560px;
 }
 
+.home-wrapper .card {
+  width: auto;
+  max-width: 400px;
+  padding: 24px;
+}
+
 .brand-title {
   text-align: center;
   margin: 0 0 30px;
-  font-size: 2.0rem; 
+  font-size: 2.0rem;
 }
 
 .brand-logo {
@@ -219,21 +225,23 @@ label {
 
 .login-form h2 {
   text-align: center;
-  margin-bottom: 28px;
+  margin-bottom: 18px;
+  font-size: 1.15rem;
 }
 
 .login-form label {
-  font-size: 0.85rem;
+  font-size: 0.8rem;
   color: var(--text-muted);
-  margin-bottom: 6px;
+  margin-bottom: 4px;
 }
 
 .login-form input {
   display: block;
   width: 100%;
-  padding: 14px 16px;
-  border-radius: 10px;
-  margin-bottom: 20px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  margin-bottom: 14px;
+  font-size: 0.9rem;
 }
 
 .login-form button {
@@ -242,9 +250,9 @@ label {
   background: #c1c2c7;
   color: var(--text);
   border: 1px solid var(--border);
-  border-radius: 10px;
-  padding: 14px 16px;
-  margin: 8px 0 0;
+  border-radius: 8px;
+  padding: 10px 12px;
+  margin: 6px 0 0;
 }
 
 .login-form button:hover {
