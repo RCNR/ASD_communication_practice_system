@@ -12,7 +12,7 @@
     <h1>문항 관리</h1>
 
     <p class="muted">CSV 또는 XLSX 파일을 업로드하면 <code>item_id</code> 기준으로 추가/수정됩니다 (기존 문항과 같은 item_id면 덮어씁니다).</p>
-    <p class="muted">필수 컬럼: item_id, use_type, item_text / 선택 컬럼: ssis_domain, situation_type, sub_response_type, difficulty, primary_dv, emotion_tag, target_response, hint_template, example_score_2, example_score_1, example_score_0, scoring_criteria, cvi_score, status</p>
+    <p class="muted">필수 컬럼: item_id, use_type, item_text / 선택 컬럼: sentiment, example_score_2, example_score_1_ack, example_score_1_con, example_score_0, hint_template (hint_template은 use_type이 intervention인 행에만 채우면 됩니다)</p>
 
     <form method="post" action="/admin/items/upload" enctype="multipart/form-data">
       <input type="file" name="file" accept=".csv,.xlsx" required />
@@ -47,19 +47,17 @@
       <tr>
         <th>item_id</th>
         <th>use_type</th>
-        <th>situation_type</th>
+        <th>sentiment</th>
         <th>item_text</th>
         <th>status</th>
-        <th>cvi_score</th>
       </tr>
       {% for item in items %}
       <tr>
         <td>{{ item.item_id }}</td>
         <td>{{ item.use_type }}</td>
-        <td>{{ item.situation_type or "" }}</td>
+        <td>{{ item.sentiment or "" }}</td>
         <td>{{ item.item_text }}</td>
         <td>{{ item.status }}</td>
-        <td>{{ item.cvi_score if item.cvi_score is not none else "" }}</td>
       </tr>
       {% endfor %}
     </table>

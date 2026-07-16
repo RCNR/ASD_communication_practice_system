@@ -10,20 +10,12 @@ from app.models.item import Item
 
 REQUIRED_COLUMNS = ["item_id", "use_type", "item_text"]
 OPTIONAL_COLUMNS = [
-    "ssis_domain",
-    "situation_type",
-    "sub_response_type",
-    "difficulty",
-    "primary_dv",
-    "emotion_tag",
-    "target_response",
-    "hint_template",
+    "sentiment",
     "example_score_2",
-    "example_score_1",
+    "example_score_1_ack",
+    "example_score_1_con",
     "example_score_0",
-    "scoring_criteria",
-    "cvi_score",
-    "status",
+    "hint_template",
 ]
 
 
@@ -67,32 +59,18 @@ def upsert_items(db: DbSession, rows: list[dict]) -> tuple[int, list[str]]:
             errors.append(f"{i}행: 필수 컬럼 누락 ({', '.join(missing)})")
             continue
 
-        cvi_score = row.get("cvi_score")
-        try:
-            cvi_score = float(cvi_score) if cvi_score not in (None, "") else None
-        except ValueError:
-            errors.append(f"{i}행: cvi_score 숫자 변환 실패 ({cvi_score})")
-            continue
-
         db.merge(
             Item(
                 item_id=row["item_id"],
                 use_type=row["use_type"],
-                ssis_domain=row.get("ssis_domain") or None,
-                situation_type=row.get("situation_type") or None,
-                sub_response_type=row.get("sub_response_type") or None,
-                difficulty=row.get("difficulty") or None,
-                primary_dv=row.get("primary_dv") or None,
-                emotion_tag=row.get("emotion_tag") or None,
+                sentiment=row.get("sentiment") or None,
                 item_text=row["item_text"],
-                target_response=row.get("target_response") or None,
-                hint_template=row.get("hint_template") or None,
                 example_score_2=row.get("example_score_2") or None,
-                example_score_1=row.get("example_score_1") or None,
+                example_score_1_ack=row.get("example_score_1_ack") or None,
+                example_score_1_con=row.get("example_score_1_con") or None,
                 example_score_0=row.get("example_score_0") or None,
-                scoring_criteria=row.get("scoring_criteria") or None,
-                cvi_score=cvi_score,
-                status=row.get("status") or "approved",
+                hint_template=row.get("hint_template") or None,
+                status="approved",
             )
         )
         upserted += 1
