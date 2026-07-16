@@ -1,4 +1,4 @@
-from sqlalchemy import Column, String
+from sqlalchemy import Column, Integer, String
 
 from app.core.database import Base
 
@@ -8,6 +8,10 @@ class Item(Base):
 
     item_id = Column(String, primary_key=True)  # INT_001, ASM_001, ...
     use_type = Column(String, nullable=False)  # intervention / assessment / pilot
+    # Shared draw order within a use_type: set once (randomly) the first time
+    # it's needed, then stable. Every participant's session N slices the same
+    # ordered list, so session N always shows the same items to everyone.
+    assignment_order = Column(Integer, nullable=True)
     sentiment = Column(String, nullable=True)  # positive / negative - item_text의 정서 특징
     item_text = Column(String, nullable=False)
     example_score_2 = Column(String, nullable=True)  # 2점 예시 (인정 + 이어가기)

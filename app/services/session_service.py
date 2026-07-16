@@ -3,6 +3,7 @@ from __future__ import annotations
 import random
 from datetime import datetime, timedelta, timezone
 
+from sqlalchemy import func
 from sqlalchemy.orm import Session as DbSession
 
 from app.models.ai_hint_log import AiHintLog
@@ -118,6 +119,31 @@ def get_next_session_number(db: DbSession, participant: Participant) -> int:
     )
 
 
+def _ensure_assignment_order(db: DbSession, use_type: str) -> None:
+    """Assigns a shared draw order to any approved items of this use_type
+    that don't have one yet. New items are shuffled in after the current
+    tail rather than reshuffling everything, so previously-assigned
+    positions (and therefore what session N means for existing items) never
+    move once set."""
+    unordered = (
+        db.query(Item)
+        .filter_by(use_type=use_type, status="approved")
+        .filter(Item.assignment_order.is_(None))
+        .all()
+    )
+    if not unordered:
+        return
+
+    current_max = (
+        db.query(func.max(Item.assignment_order)).filter_by(use_type=use_type, status="approved").scalar()
+    ) or 0
+
+    random.shuffle(unordered)
+    for offset, item in enumerate(unordered, start=1):
+        item.assignment_order = current_max + offset
+    db.commit()
+
+
 def get_or_create_active_session(db: DbSession, participant: Participant) -> StudySession | None:
     phase = participant.current_phase
 
@@ -151,26 +177,26 @@ def get_or_create_active_session(db: DbSession, participant: Participant) -> Stu
     db.flush()
 
     use_type = PHASE_USE_TYPE[phase]
-    pool = db.query(Item).filter_by(use_type=use_type, status="approved").all()
+    _ensure_assignment_order(db, use_type)
 
-    relevant_phases = [p for p, u in PHASE_USE_TYPE.items() if u == use_type]
-    used_item_ids = {
-        item_id
-        for (item_id,) in db.query(SessionItem.item_id)
-        .join(StudySession, SessionItem.session_id == StudySession.id)
-        .filter(
-            StudySession.participant_code == participant.participant_code,
-            StudySession.phase.in_(relevant_phases),
-        )
+    ordered_pool = (
+        db.query(Item)
+        .filter_by(use_type=use_type, status="approved")
+        .order_by(Item.assignment_order)
         .all()
-    }
-    unused_pool = [item for item in pool if item.item_id not in used_item_ids]
+    )
 
-    # Draw without replacement from items not yet used by this participant in
-    # this use_type. Once too few remain to fill a session, reshuffle from the
-    # full pool (repeats become possible again) rather than running short.
-    draw_pool = unused_pool if len(unused_pool) >= planned_item_count else pool
-    candidate_items = random.sample(draw_pool, min(planned_item_count, len(draw_pool)))
+    # Session N always draws the same slice of the shared order, so every
+    # participant sees identical items for the same session_number (within
+    # this phase - baseline and maintenance each count from 1 independently
+    # even though they share the assessment pool). Once the pool is
+    # exhausted, later sessions wrap back to the start of the same order
+    # rather than reshuffling, so the guarantee holds indefinitely.
+    n = len(ordered_pool)
+    count = min(planned_item_count, n)
+    start = ((session_number - 1) * planned_item_count) % n if n else 0
+    candidate_items = [ordered_pool[(start + i) % n] for i in range(count)]
+
     for order, item in enumerate(candidate_items, start=1):
         db.add(SessionItem(session_id=new_session.id, item_id=item.item_id, item_order=order))
         db.add(
