@@ -367,6 +367,12 @@ th {
   white-space: nowrap;
 }
 
+.wrap-cell {
+  max-width: 320px;
+  overflow-wrap: break-word;
+  word-break: break-word;
+}
+
 tr.flagged {
   background: var(--warning-bg);
 }

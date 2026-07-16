@@ -49,15 +49,15 @@
         <th>use_type</th>
         <th>sentiment</th>
         <th>item_text</th>
-        <th>status</th>
+        <th>example_score_2</th>
       </tr>
       {% for item in items %}
       <tr>
         <td>{{ item.item_id }}</td>
         <td>{{ item.use_type }}</td>
         <td>{{ item.sentiment or "" }}</td>
-        <td>{{ item.item_text }}</td>
-        <td>{{ item.status }}</td>
+        <td class="wrap-cell">{{ item.item_text }}</td>
+        <td class="wrap-cell">{{ item.example_score_2 or "" }}</td>
       </tr>
       {% endfor %}
     </table>
