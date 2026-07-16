@@ -368,9 +368,19 @@ th {
 }
 
 .wrap-cell {
+  min-width: 160px;
   max-width: 320px;
   overflow-wrap: break-word;
   word-break: break-word;
+}
+
+.table-scroll {
+  overflow-x: auto;
+}
+
+.table-scroll table {
+  width: max-content;
+  min-width: 100%;
 }
 
 tr.flagged {

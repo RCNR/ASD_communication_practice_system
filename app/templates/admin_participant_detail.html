@@ -11,6 +11,7 @@
     <p class="nav"><a href="/admin">&larr; 참여자 목록</a></p>
     <h1>{{ participant.participant_code }} 응답 기록</h1>
 
+    <div class="table-scroll">
     <table>
       <tr>
         <th>단계</th>
@@ -34,21 +35,22 @@
         <td>{{ row.phase }}</td>
         <td>{{ row.session_number }}</td>
         <td>{{ row.item_order }}</td>
-        <td>{{ row.item_text }}</td>
-        <td>{{ row.first_response or "" }}</td>
+        <td class="wrap-cell">{{ row.item_text }}</td>
+        <td class="wrap-cell">{{ row.first_response or "" }}</td>
         <td>{{ row.score1 if row.score1 is not none else "" }}</td>
-        <td>{{ row.hint1 or "" }}</td>
-        <td>{{ row.revised_response_1 or "" }}</td>
+        <td class="wrap-cell">{{ row.hint1 or "" }}</td>
+        <td class="wrap-cell">{{ row.revised_response_1 or "" }}</td>
         <td>{{ row.score2 if row.score2 is not none else "" }}</td>
-        <td>{{ row.hint2 or "" }}</td>
-        <td>{{ row.revised_response_2 or "" }}</td>
+        <td class="wrap-cell">{{ row.hint2 or "" }}</td>
+        <td class="wrap-cell">{{ row.revised_response_2 or "" }}</td>
         <td>{{ "예" if row.example_used else "" }}</td>
-        <td>{{ row.final_response or "" }}</td>
+        <td class="wrap-cell">{{ row.final_response or "" }}</td>
         <td>{{ "완료" if row.completed else "" }}</td>
         <td>{% if row.safety_flag %}<span class="badge">{{ row.safety_flag }}</span>{% endif %}</td>
       </tr>
       {% endfor %}
     </table>
+    </div>
   </div>
 </body>
 </html>
