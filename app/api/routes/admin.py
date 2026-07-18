@@ -335,27 +335,48 @@ def admin_scores(request: Request, participant_code: str = "", db: Session = Dep
     ).all()
 
     score_rows = []
+    session_totals = {}  # (participant_code, session_number) -> {"total": int, "count": int}
     for trial, study_session, item, participant in trials:
         eval1 = get_latest_evaluation(db, trial.id, 1)
         eval2 = get_latest_evaluation(db, trial.id, 2)
+        score1 = eval1.score_level if eval1 else None
         score_rows.append(
             {
                 "participant_code": participant.participant_code,
                 "session_number": study_session.session_number,
                 "item_order": trial.item_order,
                 "item_text": item.item_text,
-                "score1": eval1.score_level if eval1 else None,
+                "score1": score1,
                 "score2": eval2.score_level if eval2 else None,
                 "example_used": trial.example_used,
                 "completed": trial.completed,
             }
         )
 
+        key = (participant.participant_code, study_session.session_number)
+        totals = session_totals.setdefault(key, {"total": 0, "count": 0, "answered": 0})
+        totals["count"] += 1
+        if score1 is not None:
+            totals["total"] += score1
+            totals["answered"] += 1
+
+    session_summary_rows = [
+        {
+            "participant_code": code,
+            "session_number": session_number,
+            "score_1st_total": totals["total"],
+            "item_count": totals["count"],
+            "answered_count": totals["answered"],
+        }
+        for (code, session_number), totals in sorted(session_totals.items())
+    ]
+
     return templates.TemplateResponse(
         request,
         "admin_scores.html",
         {
             "score_rows": score_rows,
+            "session_summary_rows": session_summary_rows,
             "participant_codes": participant_codes,
             "selected_participant_code": participant_code,
         },

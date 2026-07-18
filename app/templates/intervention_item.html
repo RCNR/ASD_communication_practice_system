@@ -45,7 +45,21 @@
     {% endif %}
 
     {% if stage == "adequate" %}
+    {% if missing == "이어가기" %}
+    <div class="hint-box">
+      <span class="label">제안</span>
+      좋아요, 친구 마음을 잘 알아줬어요.<br />
+      다음에는 여기에 궁금한 점을 묻거나 힘이 되는 말을 한마디 덧붙이면 대화가 더 이어질 수 있어요.
+    </div>
+    {% elif missing == "인정" %}
+    <div class="hint-box">
+      <span class="label">제안</span>
+      좋아요, 대화를 이어가려고 했네요.<br />
+      다음에는 먼저 친구의 마음을 알아주는 말을 한마디 넣으면 친구가 더 위로받을 수 있어요.
+    </div>
+    {% else %}
     <p>잘했어요! 다음 문항으로 넘어가볼까요?</p>
+    {% endif %}
     <form method="post" action="/session/finalize">
       <input type="hidden" name="trial_id" value="{{ trial_id }}" />
       <button type="submit">다음 문항</button>

@@ -65,6 +65,18 @@ def _apply_content_safety(db: Session, trial: TrialResponse, response_text: str)
     return None
 
 
+def _missing_for(eval_log) -> str | None:
+    """Which element ("인정" or "이어가기") a 1-point response is missing, for
+    picking the fixed suggestion message. None for 0/2-point evaluations."""
+    if eval_log is None or eval_log.score_level != 1:
+        return None
+    if eval_log.acknowledge and not eval_log.continue_flag:
+        return "이어가기"
+    if eval_log.continue_flag and not eval_log.acknowledge:
+        return "인정"
+    return None
+
+
 def _current_participant(request: Request, db: Session) -> Participant | None:
     participant_code = request.session.get("participant_code")
     if not participant_code:
@@ -99,11 +111,16 @@ def _render_intervention_item(
 
     eval1 = get_latest_evaluation(db, trial.id, 1)
 
-    if eval1 is None or eval1.score_level == 2:
+    if eval1 is None or eval1.score_level in (1, 2):
         return templates.TemplateResponse(
             request,
             "intervention_item.html",
-            {**base_context, "stage": "adequate", "first_response": trial.first_response},
+            {
+                **base_context,
+                "stage": "adequate",
+                "first_response": trial.first_response,
+                "missing": _missing_for(eval1),
+            },
         )
 
     if trial.revised_response_1 is None:
@@ -120,7 +137,7 @@ def _render_intervention_item(
 
     eval2 = get_latest_evaluation(db, trial.id, 2)
 
-    if eval2 is None or eval2.score_level == 2:
+    if eval2 is None or eval2.score_level in (1, 2):
         return templates.TemplateResponse(
             request,
             "intervention_item.html",
@@ -129,6 +146,7 @@ def _render_intervention_item(
                 "stage": "adequate",
                 "first_response": trial.first_response,
                 "revised_response_1": trial.revised_response_1,
+                "missing": _missing_for(eval2),
             },
         )
 
@@ -329,10 +347,10 @@ def session_revise(
 
         if ai_enabled:
             item = db.get(Item, trial.item_id)
-            score, _ = evaluate_answer(
+            score, _, _ = evaluate_answer(
                 db, trial, item, hint_level=2, student_response=response_text
             )
-            if score != 2:
+            if score == 0:
                 trial.example_used = True
                 db.commit()
 

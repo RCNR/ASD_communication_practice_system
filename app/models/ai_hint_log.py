@@ -14,9 +14,12 @@ class AiHintLog(Base):
     model_name = Column(String, nullable=True)
     api_response_raw = Column(String, nullable=True)
     hint_message = Column(String, nullable=True)
-    score_level = Column(Integer, nullable=True)  # AI 채점: 0/1/2점. 2점이어야 다음 문항으로 진행
+    score_level = Column(Integer, nullable=True)  # AI 채점(파생값): 0/1/2점. acknowledge+continue로부터 계산
+    acknowledge = Column(Boolean, nullable=True)  # 인정 요소 충족 여부
+    continue_flag = Column(Boolean, nullable=True)  # 이어가기 요소 충족 여부 ("continue"는 예약어라 컬럼명은 continue_flag)
     fallback_used = Column(Boolean, nullable=False, default=False)
     contains_scoring = Column(Boolean, nullable=False, default=False)
     contains_full_answer = Column(Boolean, nullable=False, default=False)
     safety_flag = Column(String, nullable=False, default="none")
+    profanity_detected = Column(Boolean, nullable=False, default=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now())

@@ -22,6 +22,25 @@
       <noscript><button type="submit">조회</button></noscript>
     </form>
 
+    <p class="section-title">회기별 점수 (1차 독립 응답 합산 - 종속변인)</p>
+    <table>
+      <tr>
+        <th>참여자 코드</th>
+        <th>회기</th>
+        <th>1차 응답 점수 합계</th>
+        <th>응답 완료 문항 수</th>
+      </tr>
+      {% for row in session_summary_rows %}
+      <tr>
+        <td>{{ row.participant_code }}</td>
+        <td>{{ row.session_number }}</td>
+        <td>{{ row.score_1st_total }} / {{ row.item_count * 2 }}</td>
+        <td>{{ row.answered_count }} / {{ row.item_count }}</td>
+      </tr>
+      {% endfor %}
+    </table>
+
+    <p class="section-title">문항별 상세</p>
     <table>
       <tr>
         <th>참여자 코드</th>
