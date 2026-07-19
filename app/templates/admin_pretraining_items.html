@@ -12,7 +12,8 @@
     <h1>사전 문항 관리</h1>
 
     <p class="muted">CSV 또는 XLSX 파일을 업로드하면 <code>item_id</code> 기준으로 추가/수정됩니다 (기존 문항과 같은 item_id면 덮어씁니다).</p>
-    <p class="muted">필수 컬럼: item_id, item_text / 선택 컬럼: sentiment, example_score_2, example_score_1_ack, example_score_1_con, example_score_0, hint_template</p>
+    <p class="muted">필수 컬럼: item_id, item_text / 선택 컬럼: sentiment, example_score_2, example_score_1_ack, example_score_1_con, example_score_0, hint_template, pretraining_phase</p>
+    <p class="muted">pretraining_phase에 "기초선"/"중재"/"유지"처럼 적으면 사전교육 화면에 배지로 표시됩니다 (채점 방식과는 무관 - 채점은 hint_template 채움 여부로 결정됩니다).</p>
 
     <form method="post" action="/admin/pretraining-items/upload" enctype="multipart/form-data">
       <input type="file" name="file" accept=".csv,.xlsx" required />
@@ -46,6 +47,7 @@
     <table>
       <tr>
         <th>item_id</th>
+        <th>pretraining_phase</th>
         <th>sentiment</th>
         <th>item_text</th>
         <th>example_score_2</th>
@@ -53,6 +55,7 @@
       {% for item in items %}
       <tr>
         <td>{{ item.item_id }}</td>
+        <td>{{ item.pretraining_phase or "" }}</td>
         <td>{{ item.sentiment or "" }}</td>
         <td class="wrap-cell">{{ item.item_text }}</td>
         <td class="wrap-cell">{{ item.example_score_2 or "" }}</td>
