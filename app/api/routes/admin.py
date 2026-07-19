@@ -623,8 +623,6 @@ def admin_phase_config_submit(
     baseline_item_count: int = Form(...),
     intervention_item_count: int = Form(...),
     maintenance_item_count: int = Form(...),
-    intervention_ai_hint_enabled: bool = Form(False),
-    maintenance_ai_hint_enabled: bool = Form(False),
     db: Session = Depends(get_db),
 ):
     redirect = _require_admin(request)
@@ -636,11 +634,6 @@ def admin_phase_config_submit(
         "intervention": intervention_item_count,
         "maintenance": maintenance_item_count,
     }
-    ai_hint_enabled = {
-        "baseline": False,  # brief: 기초선 단계는 AI 사용 안 함 (절대 켜지 않음)
-        "intervention": intervention_ai_hint_enabled,
-        "maintenance": maintenance_ai_hint_enabled,
-    }
 
     for phase in PHASE_ORDER:
         config = db.get(PhaseConfig, phase)
@@ -648,7 +641,6 @@ def admin_phase_config_submit(
             config = PhaseConfig(phase=phase)
             db.add(config)
         config.default_item_count = item_counts[phase]
-        config.ai_hint_enabled = ai_hint_enabled[phase]
 
     db.commit()
     return RedirectResponse(url="/admin", status_code=303)

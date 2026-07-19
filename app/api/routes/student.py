@@ -10,7 +10,6 @@ from sqlalchemy.orm import Session
 from app.core.database import get_db
 from app.models.item import Item
 from app.models.participant import Participant
-from app.models.phase_config import PhaseConfig
 from app.models.trial_response import TrialResponse
 from app.services.hint_service import (
     CHECK_FAILED,
@@ -320,22 +319,17 @@ def session_first_response(
 
     trial = db.get(TrialResponse, trial_id)
     if trial and not trial.completed and trial.first_response is None:
-        phase_config = db.get(PhaseConfig, trial.phase)
-        ai_enabled = bool(phase_config and phase_config.ai_hint_enabled)
-
-        if ai_enabled:
-            redirect_url = _apply_content_safety(db, trial, response_text)
-            if redirect_url:
-                return RedirectResponse(url=redirect_url, status_code=303)
+        redirect_url = _apply_content_safety(db, trial, response_text)
+        if redirect_url:
+            return RedirectResponse(url=redirect_url, status_code=303)
 
         trial.first_response = response_text
         trial.first_response_started_at = trial.first_response_started_at or datetime.now(timezone.utc)
         trial.first_response_submitted_at = datetime.now(timezone.utc)
         db.commit()
 
-        if ai_enabled:
-            item = db.get(Item, trial.item_id)
-            evaluate_answer(db, trial, item, hint_level=1, student_response=response_text)
+        item = db.get(Item, trial.item_id)
+        evaluate_answer(db, trial, item, hint_level=1, student_response=response_text)
 
     return RedirectResponse(url="/session", status_code=303)
 
@@ -356,27 +350,22 @@ def session_revise(
     if not trial or trial.completed:
         return RedirectResponse(url="/session", status_code=303)
 
-    phase_config = db.get(PhaseConfig, trial.phase)
-    ai_enabled = bool(phase_config and phase_config.ai_hint_enabled)
-
-    if ai_enabled:
-        redirect_url = _apply_content_safety(db, trial, response_text)
-        if redirect_url:
-            return RedirectResponse(url=redirect_url, status_code=303)
+    redirect_url = _apply_content_safety(db, trial, response_text)
+    if redirect_url:
+        return RedirectResponse(url=redirect_url, status_code=303)
 
     if hint_level == 1:
         # revision after the step-2 hint: save it, then let the AI check it again
         trial.revised_response_1 = response_text
         db.commit()
 
-        if ai_enabled:
-            item = db.get(Item, trial.item_id)
-            score, _, _ = evaluate_answer(
-                db, trial, item, hint_level=2, student_response=response_text
-            )
-            if score == 0:
-                trial.example_used = True
-                db.commit()
+        item = db.get(Item, trial.item_id)
+        score, _, _ = evaluate_answer(
+            db, trial, item, hint_level=2, student_response=response_text
+        )
+        if score == 0:
+            trial.example_used = True
+            db.commit()
 
     elif hint_level == 2:
         # final revision after seeing the verified example: save and finalize, no further AI check
