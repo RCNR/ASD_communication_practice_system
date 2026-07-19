@@ -13,7 +13,7 @@
   <div class="card">
     <p class="session-progress">{{ phase_label }} 단계 · {{ session_number }}/{{ session_target }}회기</p>
     <h1>{{ phase_label }} 단계 {{ session_number }}회차를 시작할 준비가 되셨나요?</h1>
-    <form method="post" action="/session/start">
+    <form method="post" action="/session/start" style="text-align: center;">
       <button type="submit">{{ session_number }}회차 시작하기</button>
     </form>
   </div>
