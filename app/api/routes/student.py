@@ -182,6 +182,9 @@ def session_screen(request: Request, db: Session = Depends(get_db)):
         if completed_session_count(db, participant) >= target:
             return templates.TemplateResponse(request, "study_complete.html")
 
+        if participant.pretraining_completed:
+            return RedirectResponse(url="/session/gate", status_code=303)
+
         return templates.TemplateResponse(request, "session_choice.html")
 
     trial = get_current_trial(db, study_session)

@@ -20,13 +20,24 @@ templates = Jinja2Templates(directory="app/templates")
 
 ACTION_PREFIX = "/pretraining"
 
+# Desired walkthrough order. item_id alone doesn't track this (pretraining
+# item ids are copied from whatever the source xlsx used, e.g. Q018 for a
+# baseline-style item and Q144 for a maintenance-style one), so phase has to
+# be sorted on explicitly. Items with an unrecognized/blank pretraining_phase
+# sort last rather than silently reshuffling the rest.
+PHASE_ORDER_RANK = {"기초선": 0, "중재": 1, "유지": 2}
+
 
 def _pretraining_items(db: Session) -> list[Item]:
-    return (
+    items = (
         db.query(Item)
         .filter_by(use_type="pretraining", status="approved")
         .order_by(Item.item_id)
         .all()
+    )
+    return sorted(
+        items,
+        key=lambda item: (PHASE_ORDER_RANK.get(item.pretraining_phase, len(PHASE_ORDER_RANK)), item.item_id),
     )
 
 
@@ -114,6 +125,9 @@ def pretraining_item(request: Request, db: Session = Depends(get_db)):
 
     items = _pretraining_items(db)
     if state["index"] >= len(items):
+        if not participant.pretraining_completed:
+            participant.pretraining_completed = True
+            db.commit()
         return templates.TemplateResponse(request, "pretraining_complete.html")
 
     if state["safety_flag"]:
@@ -133,6 +147,7 @@ def pretraining_item(request: Request, db: Session = Depends(get_db)):
         "progress_current": state["index"] + 1,
         "progress_total": len(items),
         "action_prefix": ACTION_PREFIX,
+        "item_phase_label": item.pretraining_phase,
         "rewrite_notice": request.query_params.get("rewrite_notice") == "1",
         "retry_notice": request.query_params.get("retry_notice") == "1",
         **session_label,

@@ -1,4 +1,4 @@
-from sqlalchemy import Column, DateTime, Integer, String
+from sqlalchemy import Boolean, Column, DateTime, Integer, String
 from sqlalchemy.sql import func
 
 from app.core.database import Base
@@ -16,6 +16,7 @@ class Participant(Base):
     current_phase = Column(String, nullable=False)  # baseline / intervention / maintenance
     status = Column(String, nullable=False, default="active")  # active / paused / dropped
     created_at = Column(DateTime(timezone=True), server_default=func.now())
+    pretraining_completed = Column(Boolean, nullable=False, default=False)
 
     # Seconds that must pass after the participant's last completed session
     # before the next session in that phase can start. Set per participant by

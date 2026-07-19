@@ -20,3 +20,6 @@ class Item(Base):
     example_score_0 = Column(String, nullable=True)  # 0점 예시
     hint_template = Column(String, nullable=True)  # intervention 문항에만 값이 들어감
     status = Column(String, nullable=False, default="approved")  # approved / revise / deleted - xlsx 컬럼 아님, 내부용
+    # 사전 문항 전용 표시값 (기초선/중재/유지). 채점 로직에는 관여하지 않고
+    # /pretraining/item 화면에 배지로만 노출된다.
+    pretraining_phase = Column(String, nullable=True)
