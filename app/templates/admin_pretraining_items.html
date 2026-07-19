@@ -44,24 +44,36 @@
     {% endif %}
 
     <p class="section-title">현재 사전 문항 목록</p>
+    <div class="table-scroll">
     <table>
       <tr>
         <th>item_id</th>
         <th>pretraining_phase</th>
+        <th>use_type</th>
         <th>sentiment</th>
         <th>item_text</th>
         <th>example_score_2</th>
+        <th>example_score_1_ack</th>
+        <th>example_score_1_con</th>
+        <th>example_score_0</th>
+        <th>hint_template</th>
       </tr>
       {% for item in items %}
       <tr>
         <td>{{ item.item_id }}</td>
         <td>{{ item.pretraining_phase or "" }}</td>
+        <td>{{ item.use_type }}</td>
         <td>{{ item.sentiment or "" }}</td>
         <td class="wrap-cell">{{ item.item_text }}</td>
         <td class="wrap-cell">{{ item.example_score_2 or "" }}</td>
+        <td class="wrap-cell">{{ item.example_score_1_ack or "" }}</td>
+        <td class="wrap-cell">{{ item.example_score_1_con or "" }}</td>
+        <td class="wrap-cell">{{ item.example_score_0 or "" }}</td>
+        <td class="wrap-cell">{{ item.hint_template or "" }}</td>
       </tr>
       {% endfor %}
     </table>
+    </div>
   </div>
 </body>
 </html>
