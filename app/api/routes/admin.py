@@ -459,6 +459,14 @@ async def admin_pretraining_items_upload(request: Request, file: UploadFile, db:
         rows = parse_item_file(file.filename, content)
         for row in rows:
             row["use_type"] = "pretraining"
+            # item_id is the Item table's primary key, shared with regular
+            # items - prefixing here guarantees a pretraining upload can
+            # never collide with (and silently overwrite via db.merge) a
+            # regular item that happens to use the same item_id in its own
+            # source file.
+            original_id = str(row.get("item_id") or "").strip()
+            if original_id and not original_id.startswith("PRETRAIN_"):
+                row["item_id"] = f"PRETRAIN_{original_id}"
         upserted, errors = upsert_items(db, rows)
         result = {"upserted": upserted, "errors": errors}
     except Exception as exc:
