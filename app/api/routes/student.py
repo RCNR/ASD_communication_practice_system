@@ -15,6 +15,7 @@ from app.models.trial_response import TrialResponse
 from app.services.hint_service import (
     CHECK_FAILED,
     check_content_safety,
+    check_response_validity,
     evaluate_answer,
 )
 from app.services.session_service import (
@@ -244,6 +245,7 @@ def session_screen(request: Request, db: Session = Depends(get_db)):
             "trial_id": trial.id,
             "progress_current": trial.item_order,
             "progress_total": study_session.planned_item_count,
+            "invalid_notice": request.query_params.get("invalid_notice") == "1",
             **session_label,
         },
     )
@@ -274,6 +276,9 @@ def session_respond(
 
     trial = db.get(TrialResponse, trial_id)
     if trial and not trial.completed:
+        if not check_response_validity(response_text):
+            return RedirectResponse(url="/session?invalid_notice=1", status_code=303)
+
         trial.first_response = response_text
         trial.first_response_submitted_at = datetime.now(timezone.utc)
         trial.final_response = response_text

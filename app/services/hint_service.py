@@ -139,6 +139,63 @@ def check_content_safety(student_response: str) -> str | None:
         return CHECK_FAILED
 
 
+VALIDITY_SYSTEM_PROMPT = """너는 학생이 쓴 대화 연습 답장이 "문장이나 단어" 형태로 되어 있는지만 판단하는
+필터다. 내용이 적절한지, 상황과 관련 있는지, 욕설이 있는지는 전혀 신경 쓰지 않는다 - 오직 사람이 알아볼 수
+있는 문장이나 단어인지만 본다.
+
+아래는 valid=false로 판단한다:
+- "ㅇㅇ", "ㅋㅋㅋ", "ㅎㅇ" 같은 자음/모음만 나열되거나 감탄사만 있는 경우
+- 의미를 알 수 없는 숫자·기호 나열 (예: "1234", "...", "ㅁㄴㅇㄹ")
+- 빈 내용이나 공백만 있는 경우
+
+아래는 설령 부적절하거나 상황과 무관해도 valid=true로 판단한다 (내용 판단은 이 필터의 역할이 아니다):
+- 욕설이나 비속어가 섞인 문장
+- 실제 단어나 문장이면 상황과 관련 없어도 유효함 (예: "몰라", "배고파", "그냥 그래")
+
+반드시 JSON 형식으로만 응답한다."""
+
+VALIDITY_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "valid": {"type": "boolean"},
+    },
+    "required": ["valid"],
+    "additionalProperties": False,
+}
+
+
+def check_response_validity(text: str) -> bool:
+    """Narrow AI check used only in baseline/maintenance (phases that
+    otherwise never call the AI): judges only whether text is a real
+    sentence/word, not whether it's appropriate or on-topic - profanity still
+    counts as valid here, since content judgment isn't this filter's job.
+
+    Fails open (returns True) on API/parse failure: this is a UX guard
+    against blank/gibberish input, not a safety gate, so an API hiccup
+    shouldn't block baseline/maintenance progress."""
+    try:
+        response = client.chat.completions.create(
+            model=settings.OPENAI_MODEL,
+            messages=[
+                {"role": "system", "content": VALIDITY_SYSTEM_PROMPT},
+                {"role": "user", "content": text},
+            ],
+            response_format={
+                "type": "json_schema",
+                "json_schema": {
+                    "name": "response_validity",
+                    "schema": VALIDITY_SCHEMA,
+                    "strict": True,
+                },
+            },
+        )
+        parsed = json.loads(response.choices[0].message.content)
+        valid = parsed.get("valid")
+        return valid if isinstance(valid, bool) else True
+    except Exception:
+        return True
+
+
 def _derive_score(acknowledge: bool, continue_flag: bool) -> int:
     if acknowledge and continue_flag:
         return 2

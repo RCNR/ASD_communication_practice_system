@@ -17,6 +17,12 @@
       <p class="muted">친구가 이렇게 보냈어.</p>
       <p>"{{ item.item_text }}"</p>
     </div>
+    {% if invalid_notice %}
+    <div class="warning-box">
+      <p style="margin-bottom: 0;">문장이나 단어로 입력해주세요.</p>
+    </div>
+    {% endif %}
+
     <p>친구에게 보낼 답장을 써보세요.</p>
     <form method="post" action="/session/respond">
       <input type="hidden" name="trial_id" value="{{ trial_id }}" />
