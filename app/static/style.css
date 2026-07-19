@@ -73,7 +73,7 @@ body.home-split {
   min-width: 340px;
   background: linear-gradient(155deg, #9c2740 0%, var(--crimson) 55%, #5f1120 100%);
   color: #fff;
-  padding: 64px 48px;
+  padding: 130px 48px 64px 48px;
   display: flex;
   flex-direction: column;
   justify-content: space-between;
@@ -83,7 +83,7 @@ body.home-split {
   display: flex;
   align-items: center;
   gap: 14px;
-  margin-bottom: 28px;
+  margin-bottom: 0;
 }
 
 .home-brand-icon {
@@ -96,12 +96,17 @@ body.home-split {
   font-size: 2.4rem;
   font-weight: 800;
   letter-spacing: 0.03em;
+  line-height: 1;
 }
 
 .home-tagline {
-  font-size: 1.8rem;
+  font-size: 1.1rem;
   font-weight: 600;
   margin-bottom: 28px;
+}
+
+.home-description {
+  margin-top: 48px;
 }
 
 .home-description p {
@@ -112,9 +117,14 @@ body.home-split {
 }
 
 .home-school-logo {
-  width: 88px;
+  width: 35%;
   height: auto;
   opacity: 0.95;
+
+  display: block;
+  margin-left: auto;
+  margin-right: auto;
+
 }
 
 .home-right {
@@ -132,7 +142,7 @@ body.home-split {
   }
 
   .home-left {
-    padding: 40px 28px;
+    padding: 80px 28px 40px 28px;
   }
 
   .home-school-logo {
