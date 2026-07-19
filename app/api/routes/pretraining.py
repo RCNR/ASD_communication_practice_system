@@ -224,6 +224,9 @@ def pretraining_first_response(
             request.session["pretraining"] = state
             return RedirectResponse(url=redirect_url, status_code=303)
 
+        if check_profanity(response_text):
+            return RedirectResponse(url=f"{ACTION_PREFIX}/item?rewrite_notice=1", status_code=303)
+
         state["first_response"] = response_text
         score, feedback_message, missing = evaluate_answer(
             db, None, item, hint_level=1, student_response=response_text
@@ -266,6 +269,10 @@ def pretraining_revise(
         request.session["pretraining"] = state
         return RedirectResponse(url=redirect_url, status_code=303)
 
+    if check_profanity(response_text):
+        request.session["pretraining"] = state
+        return RedirectResponse(url=f"{ACTION_PREFIX}/item?rewrite_notice=1", status_code=303)
+
     if hint_level == 1:
         state["revised_response_1"] = response_text
         score, _, missing = evaluate_answer(db, None, item, hint_level=2, student_response=response_text)
@@ -275,9 +282,6 @@ def pretraining_revise(
             state["stage"] = "adequate"
             state["missing"] = missing
     elif hint_level == 2:
-        if check_profanity(response_text):
-            request.session["pretraining"] = state
-            return RedirectResponse(url=f"{ACTION_PREFIX}/item?rewrite_notice=1", status_code=303)
         _advance_to_next_item(state)
 
     request.session["pretraining"] = state

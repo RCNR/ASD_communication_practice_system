@@ -326,6 +326,9 @@ def session_first_response(
         if redirect_url:
             return RedirectResponse(url=redirect_url, status_code=303)
 
+        if check_profanity(response_text):
+            return RedirectResponse(url="/session?rewrite_notice=1", status_code=303)
+
         trial.first_response = response_text
         trial.first_response_started_at = trial.first_response_started_at or datetime.now(timezone.utc)
         trial.first_response_submitted_at = datetime.now(timezone.utc)
@@ -360,6 +363,13 @@ def session_revise(
     if redirect_url:
         return RedirectResponse(url=redirect_url, status_code=303)
 
+    # Checked here (before either branch saves anything) rather than inside
+    # evaluate_answer's scoring path: a profane revision should bounce back
+    # for a retry exactly like invalid/unsafe text does, not get saved as
+    # revised_response_1/2 and scored 0 with a hint.
+    if check_profanity(response_text):
+        return RedirectResponse(url="/session?rewrite_notice=1", status_code=303)
+
     if hint_level == 1:
         # revision after the step-2 hint: save it, then let the AI check it again
         trial.revised_response_1 = response_text
@@ -375,11 +385,7 @@ def session_revise(
 
     elif hint_level == 2:
         # final revision after seeing the verified example: no acknowledge/continue
-        # check needed, but still screen for profanity since evaluate_answer
-        # (the only other place that catches it) never runs at this step
-        if check_profanity(response_text):
-            return RedirectResponse(url="/session?rewrite_notice=1", status_code=303)
-
+        # check needed since profanity/validity are already screened above
         trial.revised_response_2 = response_text
         trial.final_response = response_text
         trial.completed = True
