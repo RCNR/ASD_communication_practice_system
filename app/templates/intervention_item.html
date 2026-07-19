@@ -32,7 +32,7 @@
 
     {% if stage == "first" %}
     <p>친구에게 보낼 답장을 먼저 써보세요.</p>
-    <form method="post" action="/session/first-response" data-ai-loading>
+    <form method="post" action="{{ action_prefix|default('/session') }}/first-response" data-ai-loading>
       <input type="hidden" name="trial_id" value="{{ trial_id }}" />
       <textarea name="response_text" rows="4" required></textarea>
       <button type="submit">첫 답장 제출</button>
@@ -60,7 +60,7 @@
     {% else %}
     <p>잘했어요! 다음 문항으로 넘어가볼까요?</p>
     {% endif %}
-    <form method="post" action="/session/finalize">
+    <form method="post" action="{{ action_prefix|default('/session') }}/finalize">
       <input type="hidden" name="trial_id" value="{{ trial_id }}" />
       <button type="submit">다음 문항</button>
     </form>
@@ -70,7 +70,7 @@
       <span class="label">힌트</span>
       {{ feedback_message }}
     </div>
-    <form method="post" action="/session/revise" data-ai-loading>
+    <form method="post" action="{{ action_prefix|default('/session') }}/revise" data-ai-loading>
       <input type="hidden" name="trial_id" value="{{ trial_id }}" />
       <input type="hidden" name="hint_level" value="1" />
       <textarea name="response_text" rows="4" required></textarea>
@@ -83,7 +83,7 @@
       "{{ example_text }}"
       <p class="muted" style="margin: 8px 0 0;">위 참고 답장을 그대로 사용해보세요.</p>
     </div>
-    <form method="post" action="/session/revise">
+    <form method="post" action="{{ action_prefix|default('/session') }}/revise">
       <input type="hidden" name="trial_id" value="{{ trial_id }}" />
       <input type="hidden" name="hint_level" value="2" />
       <textarea name="response_text" rows="4" required></textarea>

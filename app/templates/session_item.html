@@ -24,7 +24,7 @@
     {% endif %}
 
     <p>친구에게 보낼 답장을 써보세요.</p>
-    <form method="post" action="/session/respond">
+    <form method="post" action="{{ action_prefix|default('/session') }}/respond">
       <input type="hidden" name="trial_id" value="{{ trial_id }}" />
       <textarea name="response_text" rows="4" required></textarea>
       <button type="submit">다음</button>

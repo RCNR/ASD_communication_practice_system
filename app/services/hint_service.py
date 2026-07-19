@@ -243,13 +243,15 @@ def _validate_parsed(parsed: dict, item: Item) -> bool:
 
 
 def evaluate_answer(
-    db: DbSession, trial: TrialResponse, item: Item, hint_level: int, student_response: str
+    db: DbSession, trial: TrialResponse | None, item: Item, hint_level: int, student_response: str
 ) -> tuple[int, str | None, str | None]:
     """Calls the AI to judge acknowledge/continue for student_response and
     derives a 0/1/2 score from them. Returns (score, feedback_message,
     missing). feedback_message is only meaningful when score is 0. missing
     is "인정"/"이어가기" when score is 1, else None. Logs the call to
-    AiHintLog.
+    AiHintLog, unless trial is None (used for ephemeral, non-persisted
+    practice sessions - e.g. pretraining - where there is no real trial row
+    to attach the log to).
 
     On API/validation failure, defaults to acknowledge=continue=False (score
     0) - fails toward giving the student more help rather than silently
@@ -257,7 +259,7 @@ def evaluate_answer(
     fallback_template = item.hint_template
 
     payload = {
-        "session_ref": trial.id,
+        "session_ref": trial.id if trial is not None else "pretraining",
         "item_id": item.item_id,
         "sentiment": item.sentiment,
         "item_text": item.item_text,
@@ -330,24 +332,25 @@ def evaluate_answer(
     score = _derive_score(acknowledge, continue_flag)
     missing = _derive_missing(acknowledge, continue_flag) if score == 1 else None
 
-    db.add(
-        AiHintLog(
-            trial_id=trial.id,
-            hint_level=hint_level,
-            prompt_payload=json.dumps(payload, ensure_ascii=False),
-            model_name=settings.OPENAI_MODEL,
-            api_response_raw=raw_content,
-            hint_message=feedback_message,
-            score_level=score,
-            acknowledge=acknowledge,
-            continue_flag=continue_flag,
-            fallback_used=fallback_used,
-            contains_scoring=True,  # this call's whole purpose is a correctness judgment
-            contains_full_answer=contains_full_answer,
-            safety_flag=safety_flag,
-            profanity_detected=profanity_detected,
+    if trial is not None:
+        db.add(
+            AiHintLog(
+                trial_id=trial.id,
+                hint_level=hint_level,
+                prompt_payload=json.dumps(payload, ensure_ascii=False),
+                model_name=settings.OPENAI_MODEL,
+                api_response_raw=raw_content,
+                hint_message=feedback_message,
+                score_level=score,
+                acknowledge=acknowledge,
+                continue_flag=continue_flag,
+                fallback_used=fallback_used,
+                contains_scoring=True,  # this call's whole purpose is a correctness judgment
+                contains_full_answer=contains_full_answer,
+                safety_flag=safety_flag,
+                profanity_detected=profanity_detected,
+            )
         )
-    )
-    db.commit()
+        db.commit()
 
     return score, feedback_message, missing

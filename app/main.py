@@ -5,7 +5,7 @@ from fastapi.responses import RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from starlette.middleware.sessions import SessionMiddleware
 
-from app.api.routes import admin, auth, chat, health, student
+from app.api.routes import admin, auth, chat, health, pretraining, student
 from app.core.config import settings
 from app.core.database import init_db
 
@@ -23,6 +23,7 @@ app.include_router(health.router, prefix="/api")
 app.include_router(chat.router, prefix="/api")
 app.include_router(auth.router)
 app.include_router(student.router)
+app.include_router(pretraining.router)
 app.include_router(admin.router)
 
 app.mount("/static", StaticFiles(directory="app/static"), name="static")

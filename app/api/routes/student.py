@@ -182,15 +182,7 @@ def session_screen(request: Request, db: Session = Depends(get_db)):
         if completed_session_count(db, participant) >= target:
             return templates.TemplateResponse(request, "study_complete.html")
 
-        return templates.TemplateResponse(
-            request,
-            "session_gate.html",
-            {
-                "phase_label": PHASE_LABEL[participant.current_phase],
-                "session_number": get_next_session_number(db, participant),
-                "session_target": target,
-            },
-        )
+        return templates.TemplateResponse(request, "session_choice.html")
 
     trial = get_current_trial(db, study_session)
 
@@ -247,6 +239,30 @@ def session_screen(request: Request, db: Session = Depends(get_db)):
             "progress_total": study_session.planned_item_count,
             "invalid_notice": request.query_params.get("invalid_notice") == "1",
             **session_label,
+        },
+    )
+
+
+@router.get("/session/gate")
+def session_gate_screen(request: Request, db: Session = Depends(get_db)):
+    participant = _current_participant(request, db)
+    if not participant:
+        return RedirectResponse(url="/login", status_code=303)
+
+    if get_active_session(db, participant) is not None:
+        return RedirectResponse(url="/session", status_code=303)
+
+    target = get_target_session_count(participant)
+    if completed_session_count(db, participant) >= target:
+        return RedirectResponse(url="/session", status_code=303)
+
+    return templates.TemplateResponse(
+        request,
+        "session_gate.html",
+        {
+            "phase_label": PHASE_LABEL[participant.current_phase],
+            "session_number": get_next_session_number(db, participant),
+            "session_target": target,
         },
     )
 
