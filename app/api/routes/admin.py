@@ -389,7 +389,7 @@ def admin_items(request: Request, db: Session = Depends(get_db)):
     if redirect:
         return redirect
 
-    items = db.query(Item).order_by(Item.item_id).all()
+    items = db.query(Item).filter(Item.use_type != "pretraining").order_by(Item.item_id).all()
     return templates.TemplateResponse(request, "admin_items.html", {"items": items, "result": None})
 
 
@@ -407,7 +407,7 @@ async def admin_items_upload(request: Request, file: UploadFile, db: Session = D
     except Exception as exc:
         result = {"upserted": 0, "errors": [f"파일을 읽는 중 오류가 발생했습니다: {exc}"]}
 
-    items = db.query(Item).order_by(Item.item_id).all()
+    items = db.query(Item).filter(Item.use_type != "pretraining").order_by(Item.item_id).all()
     return templates.TemplateResponse(request, "admin_items.html", {"items": items, "result": result})
 
 
@@ -419,7 +419,7 @@ def admin_items_delete_all(request: Request, db: Session = Depends(get_db)):
 
     used_item_ids = {item_id for (item_id,) in db.query(SessionItem.item_id).distinct().all()}
 
-    query = db.query(Item)
+    query = db.query(Item).filter(Item.use_type != "pretraining")
     if used_item_ids:
         query = query.filter(Item.item_id.notin_(used_item_ids))
     to_delete = query.all()
@@ -432,9 +432,59 @@ def admin_items_delete_all(request: Request, db: Session = Depends(get_db)):
     if used_item_ids:
         message += f" (이미 회기에 배정된 {len(used_item_ids)}개 문항은 삭제하지 않았습니다.)"
 
-    items = db.query(Item).order_by(Item.item_id).all()
+    items = db.query(Item).filter(Item.use_type != "pretraining").order_by(Item.item_id).all()
     return templates.TemplateResponse(
         request, "admin_items.html", {"items": items, "result": None, "delete_message": message}
+    )
+
+
+@router.get("/pretraining-items")
+def admin_pretraining_items(request: Request, db: Session = Depends(get_db)):
+    redirect = _require_admin(request)
+    if redirect:
+        return redirect
+
+    items = db.query(Item).filter_by(use_type="pretraining").order_by(Item.item_id).all()
+    return templates.TemplateResponse(request, "admin_pretraining_items.html", {"items": items, "result": None})
+
+
+@router.post("/pretraining-items/upload")
+async def admin_pretraining_items_upload(request: Request, file: UploadFile, db: Session = Depends(get_db)):
+    redirect = _require_admin(request)
+    if redirect:
+        return redirect
+
+    content = await file.read()
+    try:
+        rows = parse_item_file(file.filename, content)
+        for row in rows:
+            row["use_type"] = "pretraining"
+        upserted, errors = upsert_items(db, rows)
+        result = {"upserted": upserted, "errors": errors}
+    except Exception as exc:
+        result = {"upserted": 0, "errors": [f"파일을 읽는 중 오류가 발생했습니다: {exc}"]}
+
+    items = db.query(Item).filter_by(use_type="pretraining").order_by(Item.item_id).all()
+    return templates.TemplateResponse(request, "admin_pretraining_items.html", {"items": items, "result": result})
+
+
+@router.post("/pretraining-items/delete-all")
+def admin_pretraining_items_delete_all(request: Request, db: Session = Depends(get_db)):
+    redirect = _require_admin(request)
+    if redirect:
+        return redirect
+
+    to_delete = db.query(Item).filter_by(use_type="pretraining").all()
+    deleted_count = len(to_delete)
+    for item in to_delete:
+        db.delete(item)
+    db.commit()
+
+    items = db.query(Item).filter_by(use_type="pretraining").order_by(Item.item_id).all()
+    return templates.TemplateResponse(
+        request,
+        "admin_pretraining_items.html",
+        {"items": items, "result": None, "delete_message": f"{deleted_count}개 문항을 삭제했습니다."},
     )
 
 

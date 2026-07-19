@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <link rel="stylesheet" href="/static/style.css" />
+  <title>사전 문항 관리 - ASD Communication Practice System</title>
+</head>
+<body>
+  <div class="card card-wide">
+    <p class="nav"><a href="/admin">&larr; 참여자 목록</a></p>
+    <h1>사전 문항 관리</h1>
+
+    <p class="muted">CSV 또는 XLSX 파일을 업로드하면 <code>item_id</code> 기준으로 추가/수정됩니다 (기존 문항과 같은 item_id면 덮어씁니다).</p>
+    <p class="muted">필수 컬럼: item_id, item_text / 선택 컬럼: sentiment, example_score_2, example_score_1_ack, example_score_1_con, example_score_0, hint_template</p>
+
+    <form method="post" action="/admin/pretraining-items/upload" enctype="multipart/form-data">
+      <input type="file" name="file" accept=".csv,.xlsx" required />
+      <button type="submit">업로드</button>
+    </form>
+
+    <form method="post" action="/admin/pretraining-items/delete-all"
+          onsubmit="return confirm('사전 문항을 전체 삭제할까요? 되돌릴 수 없습니다.');">
+      <button type="submit">전체 삭제</button>
+    </form>
+
+    {% if delete_message %}
+    <p>{{ delete_message }}</p>
+    {% endif %}
+
+    {% if result %}
+    <div>
+      <p>{{ result.upserted }}개 문항이 반영되었습니다.</p>
+      {% if result.errors %}
+      <p class="error" style="margin-bottom: 4px;">오류:</p>
+      <ul>
+        {% for error in result.errors %}
+        <li class="error" style="margin-bottom: 4px;">{{ error }}</li>
+        {% endfor %}
+      </ul>
+      {% endif %}
+    </div>
+    {% endif %}
+
+    <p class="section-title">현재 사전 문항 목록</p>
+    <table>
+      <tr>
+        <th>item_id</th>
+        <th>sentiment</th>
+        <th>item_text</th>
+        <th>example_score_2</th>
+      </tr>
+      {% for item in items %}
+      <tr>
+        <td>{{ item.item_id }}</td>
+        <td>{{ item.sentiment or "" }}</td>
+        <td class="wrap-cell">{{ item.item_text }}</td>
+        <td class="wrap-cell">{{ item.example_score_2 or "" }}</td>
+      </tr>
+      {% endfor %}
+    </table>
+  </div>
+</body>
+</html>
