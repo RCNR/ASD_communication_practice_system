@@ -6,25 +6,39 @@
   <link rel="stylesheet" href="/static/style.css" />
   <title>Ion</title>
 </head>
-<body>
-  <div class="home-wrapper">
-    <h1 class="brand-title">Ion</h1>
-    <img class="brand-logo" src="/static/고려대학교_로고.png" alt="고려대학교 로고" />
-    <div class="card">
-      <div class="login-form">
-        <h2>로그인</h2>
-        {% if error %}
-        <p class="error">{{ error }}</p>
-        {% endif %}
-        <form method="post" action="/login">
-          <label>아이디
-            <input type="text" name="participant_code" placeholder="아이디를 입력하세요" required />
-          </label>
-          <label>비밀번호
-            <input type="password" name="password" placeholder="비밀번호를 입력하세요" required />
-          </label>
-          <button type="submit">로그인</button>
-        </form>
+<body class="home-split">
+  <div class="home-split-container">
+    <div class="home-left">
+      <div>
+        <div class="home-brand-row">
+          <span class="home-brand-name">ION</span>
+        </div>
+        <p class="home-tagline">온기를 잇는 대화 연습</p>
+        <div class="home-description">
+          <p>ION은 신경다양성을 지닌 학생을 위한 생성형 AI 기반 대화 연습 도구입니다.</p>
+          <p>상대의 감정을 알아차리는 것에서부터 대화를 이어가는 것까지, 문자 대화 속 공감적 소통을 편안하고 안전하게 연습할 수 있습니다.</p>
+          <p>생성형 AI가 정답을 대신 말하지 않고, 학생이 스스로 답을 완성하도록 단계별로 필요한 만큼만 돕습니다.</p>
+        </div>
+      </div>
+      <img class="home-school-logo" src="/static/고려대학교_로고.png" alt="고려대학교 로고" />
+    </div>
+    <div class="home-right">
+      <div class="card">
+        <div class="login-form">
+          <h2>로그인</h2>
+          {% if error %}
+          <p class="error">{{ error }}</p>
+          {% endif %}
+          <form method="post" action="/login">
+            <label>아이디
+              <input type="text" name="participant_code" placeholder="아이디를 입력하세요" required />
+            </label>
+            <label>비밀번호
+              <input type="password" name="password" placeholder="비밀번호를 입력하세요" required />
+            </label>
+            <button type="submit">로그인</button>
+          </form>
+        </div>
       </div>
     </div>
   </div>
