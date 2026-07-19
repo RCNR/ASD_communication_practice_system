@@ -33,6 +33,12 @@
     </div>
     {% endif %}
 
+    {% if invalid_notice %}
+    <div class="warning-box">
+      <p style="margin-bottom: 0;">문장이나 단어로 입력해주세요.</p>
+    </div>
+    {% endif %}
+
     {% if stage == "first" %}
     <p>친구에게 보낼 답장을 먼저 써보세요.</p>
     <form method="post" action="{{ action_prefix|default('/session') }}/first-response" data-ai-loading>

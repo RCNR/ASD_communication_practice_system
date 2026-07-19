@@ -146,6 +146,7 @@ VALIDITY_SYSTEM_PROMPT = """너는 학생이 쓴 대화 연습 답장이 "문장
 아래는 valid=false로 판단한다:
 - "ㅇㅇ", "ㅋㅋㅋ", "ㅎㅇ" 같은 자음/모음만 나열되거나 감탄사만 있는 경우
 - 의미를 알 수 없는 숫자·기호 나열 (예: "1234", "...", "ㅁㄴㅇㄹ")
+- 실제 존재하는 단어가 아닌, 키보드를 무작위로 눌러 나온 듯한 글자 나열 (언어 무관 - 예: "aadsf", "asdkfj", "ㅁㄷㄴㄻㅇ" 같이 한글이든 영어든 뜻이 없으면 동일하게 적용)
 - 빈 내용이나 공백만 있는 경우
 
 아래는 설령 부적절하거나 상황과 무관해도 valid=true로 판단한다 (내용 판단은 이 필터의 역할이 아니다):
@@ -194,6 +195,57 @@ def check_response_validity(text: str) -> bool:
         return valid if isinstance(valid, bool) else True
     except Exception:
         return True
+
+
+PROFANITY_SYSTEM_PROMPT = """너는 학생이 쓴 대화 연습 답장에 욕설이나 비속어가 포함되어 있는지만 판단하는
+필터다. 상황과 관련 있는지, 전략이 적절한지는 전혀 신경 쓰지 않는다 - 오직 욕설/비속어 포함 여부만 본다.
+
+판단이 애매하면 관대하게 없다고(false) 본다.
+반드시 JSON 형식으로만 응답한다."""
+
+PROFANITY_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "contains_profanity": {"type": "boolean"},
+    },
+    "required": ["contains_profanity"],
+    "additionalProperties": False,
+}
+
+
+def check_profanity(text: str) -> bool:
+    """Narrow AI check used only for the intervention hint loop's final
+    revision (hint_level 2), which otherwise skips evaluate_answer entirely
+    (see session_revise) and so never runs the acknowledge/continue prompt
+    that normally catches profanity via safety_flag == "inappropriate".
+    Without this, a student could submit profanity at that last step and
+    have it saved as final_response with zero screening.
+
+    Fails open (returns False) on API/parse failure: this is a narrow UX
+    guard on top of the already-passed content-safety check, not the
+    primary safety gate, so an API hiccup shouldn't block finishing the
+    trial."""
+    try:
+        response = client.chat.completions.create(
+            model=settings.OPENAI_MODEL,
+            messages=[
+                {"role": "system", "content": PROFANITY_SYSTEM_PROMPT},
+                {"role": "user", "content": text},
+            ],
+            response_format={
+                "type": "json_schema",
+                "json_schema": {
+                    "name": "profanity_check",
+                    "schema": PROFANITY_SCHEMA,
+                    "strict": True,
+                },
+            },
+        )
+        parsed = json.loads(response.choices[0].message.content)
+        contains_profanity = parsed.get("contains_profanity")
+        return contains_profanity if isinstance(contains_profanity, bool) else False
+    except Exception:
+        return False
 
 
 def _derive_score(acknowledge: bool, continue_flag: bool) -> int:

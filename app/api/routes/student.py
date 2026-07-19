@@ -14,6 +14,7 @@ from app.models.trial_response import TrialResponse
 from app.services.hint_service import (
     CHECK_FAILED,
     check_content_safety,
+    check_profanity,
     check_response_validity,
     evaluate_answer,
 )
@@ -92,6 +93,7 @@ def _render_intervention_item(
     session_label: dict,
     rewrite_notice: bool = False,
     retry_notice: bool = False,
+    invalid_notice: bool = False,
 ):
     item = db.get(Item, trial.item_id)
     base_context = {
@@ -101,6 +103,7 @@ def _render_intervention_item(
         "progress_total": planned_item_count,
         "rewrite_notice": rewrite_notice,
         "retry_notice": retry_notice,
+        "invalid_notice": invalid_notice,
         **session_label,
     }
 
@@ -228,6 +231,7 @@ def session_screen(request: Request, db: Session = Depends(get_db)):
             session_label,
             rewrite_notice=request.query_params.get("rewrite_notice") == "1",
             retry_notice=request.query_params.get("retry_notice") == "1",
+            invalid_notice=request.query_params.get("invalid_notice") == "1",
         )
 
     item = db.get(Item, trial.item_id)
@@ -239,7 +243,6 @@ def session_screen(request: Request, db: Session = Depends(get_db)):
             "trial_id": trial.id,
             "progress_current": trial.item_order,
             "progress_total": study_session.planned_item_count,
-            "invalid_notice": request.query_params.get("invalid_notice") == "1",
             **session_label,
         },
     )
@@ -294,9 +297,6 @@ def session_respond(
 
     trial = db.get(TrialResponse, trial_id)
     if trial and not trial.completed:
-        if not check_response_validity(response_text):
-            return RedirectResponse(url="/session?invalid_notice=1", status_code=303)
-
         trial.first_response = response_text
         trial.first_response_submitted_at = datetime.now(timezone.utc)
         trial.final_response = response_text
@@ -319,6 +319,9 @@ def session_first_response(
 
     trial = db.get(TrialResponse, trial_id)
     if trial and not trial.completed and trial.first_response is None:
+        if not check_response_validity(response_text):
+            return RedirectResponse(url="/session?invalid_notice=1", status_code=303)
+
         redirect_url = _apply_content_safety(db, trial, response_text)
         if redirect_url:
             return RedirectResponse(url=redirect_url, status_code=303)
@@ -350,6 +353,9 @@ def session_revise(
     if not trial or trial.completed:
         return RedirectResponse(url="/session", status_code=303)
 
+    if not check_response_validity(response_text):
+        return RedirectResponse(url="/session?invalid_notice=1", status_code=303)
+
     redirect_url = _apply_content_safety(db, trial, response_text)
     if redirect_url:
         return RedirectResponse(url=redirect_url, status_code=303)
@@ -368,7 +374,12 @@ def session_revise(
             db.commit()
 
     elif hint_level == 2:
-        # final revision after seeing the verified example: save and finalize, no further AI check
+        # final revision after seeing the verified example: no acknowledge/continue
+        # check needed, but still screen for profanity since evaluate_answer
+        # (the only other place that catches it) never runs at this step
+        if check_profanity(response_text):
+            return RedirectResponse(url="/session?rewrite_notice=1", status_code=303)
+
         trial.revised_response_2 = response_text
         trial.final_response = response_text
         trial.completed = True

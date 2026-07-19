@@ -11,6 +11,7 @@ from app.models.item import Item
 from app.services.hint_service import (
     CHECK_FAILED,
     check_content_safety,
+    check_profanity,
     check_response_validity,
     evaluate_answer,
 )
@@ -150,15 +151,12 @@ def pretraining_item(request: Request, db: Session = Depends(get_db)):
         "item_phase_label": item.pretraining_phase,
         "rewrite_notice": request.query_params.get("rewrite_notice") == "1",
         "retry_notice": request.query_params.get("retry_notice") == "1",
+        "invalid_notice": request.query_params.get("invalid_notice") == "1",
         **session_label,
     }
 
     if not item.hint_template:
-        return templates.TemplateResponse(
-            request,
-            "session_item.html",
-            {**base_context, "invalid_notice": request.query_params.get("invalid_notice") == "1"},
-        )
+        return templates.TemplateResponse(request, "session_item.html", base_context)
 
     stage = state["stage"]
     if stage == "first":
@@ -218,6 +216,9 @@ def pretraining_first_response(
 
     item = _current_item(db, state)
     if item is not None and item.hint_template and state["stage"] == "first":
+        if not check_response_validity(response_text):
+            return RedirectResponse(url=f"{ACTION_PREFIX}/item?invalid_notice=1", status_code=303)
+
         redirect_url = _apply_content_safety(state, response_text)
         if redirect_url:
             request.session["pretraining"] = state
@@ -257,6 +258,9 @@ def pretraining_revise(
     if item is None or not item.hint_template:
         return RedirectResponse(url=f"{ACTION_PREFIX}/item", status_code=303)
 
+    if not check_response_validity(response_text):
+        return RedirectResponse(url=f"{ACTION_PREFIX}/item?invalid_notice=1", status_code=303)
+
     redirect_url = _apply_content_safety(state, response_text)
     if redirect_url:
         request.session["pretraining"] = state
@@ -271,6 +275,9 @@ def pretraining_revise(
             state["stage"] = "adequate"
             state["missing"] = missing
     elif hint_level == 2:
+        if check_profanity(response_text):
+            request.session["pretraining"] = state
+            return RedirectResponse(url=f"{ACTION_PREFIX}/item?rewrite_notice=1", status_code=303)
         _advance_to_next_item(state)
 
     request.session["pretraining"] = state
@@ -310,8 +317,6 @@ def pretraining_respond(
 
     item = _current_item(db, state)
     if item is not None and not item.hint_template:
-        if not check_response_validity(response_text):
-            return RedirectResponse(url=f"{ACTION_PREFIX}/item?invalid_notice=1", status_code=303)
         _advance_to_next_item(state)
 
     request.session["pretraining"] = state
