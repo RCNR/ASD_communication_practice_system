@@ -167,7 +167,7 @@ def _render_intervention_item(
 def session_screen(request: Request, db: Session = Depends(get_db)):
     participant = _current_participant(request, db)
     if not participant:
-        return RedirectResponse(url="/login", status_code=303)
+        return RedirectResponse(url="/home", status_code=303)
 
     available_at = check_wait_gate(db, participant)
     if available_at is not None:
@@ -249,7 +249,7 @@ def session_screen(request: Request, db: Session = Depends(get_db)):
 def session_gate_screen(request: Request, db: Session = Depends(get_db)):
     participant = _current_participant(request, db)
     if not participant:
-        return RedirectResponse(url="/login", status_code=303)
+        return RedirectResponse(url="/home", status_code=303)
 
     if get_active_session(db, participant) is not None:
         return RedirectResponse(url="/session", status_code=303)
@@ -273,7 +273,7 @@ def session_gate_screen(request: Request, db: Session = Depends(get_db)):
 def session_start(request: Request, db: Session = Depends(get_db)):
     participant = _current_participant(request, db)
     if not participant:
-        return RedirectResponse(url="/login", status_code=303)
+        return RedirectResponse(url="/home", status_code=303)
 
     if check_wait_gate(db, participant) is None:
         get_or_create_active_session(db, participant)
@@ -290,7 +290,7 @@ def session_respond(
 ):
     participant = _current_participant(request, db)
     if not participant:
-        return RedirectResponse(url="/login", status_code=303)
+        return RedirectResponse(url="/home", status_code=303)
 
     trial = db.get(TrialResponse, trial_id)
     if trial and not trial.completed:
@@ -315,7 +315,7 @@ def session_first_response(
 ):
     participant = _current_participant(request, db)
     if not participant:
-        return RedirectResponse(url="/login", status_code=303)
+        return RedirectResponse(url="/home", status_code=303)
 
     trial = db.get(TrialResponse, trial_id)
     if trial and not trial.completed and trial.first_response is None:
@@ -344,7 +344,7 @@ def session_revise(
 ):
     participant = _current_participant(request, db)
     if not participant:
-        return RedirectResponse(url="/login", status_code=303)
+        return RedirectResponse(url="/home", status_code=303)
 
     trial = db.get(TrialResponse, trial_id)
     if not trial or trial.completed:
@@ -385,7 +385,7 @@ def session_finalize(
 ):
     participant = _current_participant(request, db)
     if not participant:
-        return RedirectResponse(url="/login", status_code=303)
+        return RedirectResponse(url="/home", status_code=303)
 
     trial = db.get(TrialResponse, trial_id)
     if trial and not trial.completed and trial.first_response is not None:
@@ -404,7 +404,7 @@ def session_safety_acknowledge(
 ):
     participant = _current_participant(request, db)
     if not participant:
-        return RedirectResponse(url="/login", status_code=303)
+        return RedirectResponse(url="/home", status_code=303)
 
     trial = db.get(TrialResponse, trial_id)
     if trial and not trial.completed and trial.safety_flag:

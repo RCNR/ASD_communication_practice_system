@@ -8,7 +8,6 @@ from fastapi.responses import RedirectResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
 
-from app.core.config import settings
 from app.core.database import get_db
 from app.models.ai_hint_log import AiHintLog
 from app.models.item import Item
@@ -27,7 +26,7 @@ templates = Jinja2Templates(directory="app/templates")
 
 def _require_admin(request: Request):
     if not request.session.get("is_admin"):
-        return RedirectResponse(url="/admin/login", status_code=303)
+        return RedirectResponse(url="/home", status_code=303)
     return None
 
 
@@ -42,25 +41,10 @@ def _split_seconds(total: int) -> dict:
     return {"days": days, "hours": hours, "minutes": minutes, "seconds": seconds}
 
 
-@router.get("/login")
-def admin_login_form(request: Request):
-    return templates.TemplateResponse(request, "admin_login.html", {"error": None})
-
-
-@router.post("/login")
-def admin_login_submit(request: Request, password: str = Form(...)):
-    if password != settings.ADMIN_PASSWORD:
-        return templates.TemplateResponse(
-            request, "admin_login.html", {"error": "비밀번호가 올바르지 않습니다."}
-        )
-    request.session["is_admin"] = True
-    return RedirectResponse(url="/admin", status_code=303)
-
-
 @router.get("/logout")
 def admin_logout(request: Request):
     request.session.pop("is_admin", None)
-    return RedirectResponse(url="/admin/login", status_code=303)
+    return RedirectResponse(url="/home", status_code=303)
 
 
 @router.get("")

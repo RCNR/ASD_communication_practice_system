@@ -104,7 +104,7 @@ def _current_item(db: Session, state: dict) -> Item | None:
 def pretraining_start(request: Request, db: Session = Depends(get_db)):
     participant = _current_participant(request, db)
     if not participant:
-        return RedirectResponse(url="/login", status_code=303)
+        return RedirectResponse(url="/home", status_code=303)
 
     if not _pretraining_items(db):
         return templates.TemplateResponse(request, "pretraining_empty.html")
@@ -117,7 +117,7 @@ def pretraining_start(request: Request, db: Session = Depends(get_db)):
 def pretraining_item(request: Request, db: Session = Depends(get_db)):
     participant = _current_participant(request, db)
     if not participant:
-        return RedirectResponse(url="/login", status_code=303)
+        return RedirectResponse(url="/home", status_code=303)
 
     state = request.session.get("pretraining")
     if state is None:
@@ -210,7 +210,7 @@ def pretraining_first_response(
 ):
     participant = _current_participant(request, db)
     if not participant:
-        return RedirectResponse(url="/login", status_code=303)
+        return RedirectResponse(url="/home", status_code=303)
 
     state = request.session.get("pretraining")
     if state is None:
@@ -247,7 +247,7 @@ def pretraining_revise(
 ):
     participant = _current_participant(request, db)
     if not participant:
-        return RedirectResponse(url="/login", status_code=303)
+        return RedirectResponse(url="/home", status_code=303)
 
     state = request.session.get("pretraining")
     if state is None:
@@ -281,7 +281,7 @@ def pretraining_revise(
 def pretraining_finalize(request: Request, db: Session = Depends(get_db)):
     participant = _current_participant(request, db)
     if not participant:
-        return RedirectResponse(url="/login", status_code=303)
+        return RedirectResponse(url="/home", status_code=303)
 
     state = request.session.get("pretraining")
     if state is None:
@@ -302,7 +302,7 @@ def pretraining_respond(
 ):
     participant = _current_participant(request, db)
     if not participant:
-        return RedirectResponse(url="/login", status_code=303)
+        return RedirectResponse(url="/home", status_code=303)
 
     state = request.session.get("pretraining")
     if state is None:
@@ -322,7 +322,7 @@ def pretraining_respond(
 def pretraining_safety_acknowledge(request: Request, db: Session = Depends(get_db)):
     participant = _current_participant(request, db)
     if not participant:
-        return RedirectResponse(url="/login", status_code=303)
+        return RedirectResponse(url="/home", status_code=303)
 
     state = request.session.get("pretraining")
     if state is None:

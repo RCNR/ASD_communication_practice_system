@@ -18,11 +18,6 @@ def home(request: Request):
     return templates.TemplateResponse(request, "home.html", {"error": None})
 
 
-@router.get("/login")
-def login_form(request: Request):
-    return templates.TemplateResponse(request, "login.html", {"error": None})
-
-
 @router.post("/login")
 def login_submit(
     request: Request,
@@ -58,4 +53,4 @@ def login_submit(
 @router.get("/logout")
 def logout(request: Request):
     request.session.clear()
-    return RedirectResponse(url="/login", status_code=303)
+    return RedirectResponse(url="/home", status_code=303)
