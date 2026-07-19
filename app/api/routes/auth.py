@@ -5,6 +5,7 @@ from fastapi.responses import RedirectResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
 
+from app.core.config import settings
 from app.core.database import get_db
 from app.models.participant import Participant
 
@@ -29,6 +30,14 @@ def login_submit(
     password: str = Form(...),
     db: Session = Depends(get_db),
 ):
+    if participant_code == settings.ADMIN_USERNAME:
+        if password != settings.ADMIN_PASSWORD:
+            return templates.TemplateResponse(
+                request, "home.html", {"error": "참여자 코드 또는 비밀번호가 올바르지 않습니다."}
+            )
+        request.session["is_admin"] = True
+        return RedirectResponse(url="/admin", status_code=303)
+
     participant = db.query(Participant).filter_by(participant_code=participant_code).first()
     password_hash = hashlib.sha256(password.encode()).hexdigest()
 

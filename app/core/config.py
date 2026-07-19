@@ -7,6 +7,7 @@ class Settings(BaseSettings):
     OPENAI_API_KEY: str = "${OPENAI_API_KEY}"
     OPENAI_MODEL: str = "gpt-4o-mini"
     SECRET_KEY: str = "${SECRET_KEY}"
+    ADMIN_USERNAME: str = "admin"
     ADMIN_PASSWORD: str = "${ADMIN_PASSWORD}"
 
     class Config:
