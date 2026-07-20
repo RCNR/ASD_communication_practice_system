@@ -14,7 +14,7 @@
 
     <form method="post" action="/admin/phase-config">
       <label>기초선 회기당 문항 수
-        <input type="number" name="baseline_item_count" value="{{ configs.baseline.default_item_count if configs.baseline else 6 }}" min="1" required />
+        <input type="number" name="baseline_item_count" value="{{ configs.baseline.default_item_count if configs.baseline else 10 }}" min="1" required />
       </label>
 
       <label>중재 회기당 문항 수
@@ -22,7 +22,7 @@
       </label>
 
       <label>유지 회기당 문항 수
-        <input type="number" name="maintenance_item_count" value="{{ configs.maintenance.default_item_count if configs.maintenance else 6 }}" min="1" required />
+        <input type="number" name="maintenance_item_count" value="{{ configs.maintenance.default_item_count if configs.maintenance else 10 }}" min="1" required />
       </label>
 
       <button type="submit">저장</button>
