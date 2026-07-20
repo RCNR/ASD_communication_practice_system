@@ -7,6 +7,7 @@ from fastapi.responses import RedirectResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
 
+from app.core.config import settings
 from app.core.database import get_db
 from app.models.item import Item
 from app.models.participant import Participant
@@ -34,6 +35,13 @@ router = APIRouter()
 templates = Jinja2Templates(directory="app/templates")
 
 PHASE_LABEL = {"baseline": "기초선", "intervention": "중재", "maintenance": "유지"}
+
+RESPONSE_TIMER_SECONDS = settings.RESPONSE_TIMER_SECONDS
+
+
+def _timer_label(seconds: int) -> str:
+    minutes, secs = divmod(seconds, 60)
+    return f"남은 시간: {minutes:02d}:{secs:02d}"
 
 
 def _content_safety_redirect(response_text: str) -> str | None:
@@ -91,6 +99,8 @@ def _render_intervention_item(
         "rewrite_notice": rewrite_notice,
         "retry_notice": retry_notice,
         "invalid_notice": invalid_notice,
+        "timer_seconds": RESPONSE_TIMER_SECONDS,
+        "timer_label": _timer_label(RESPONSE_TIMER_SECONDS),
         **session_label,
     }
 
@@ -263,7 +273,8 @@ def session_start(request: Request, db: Session = Depends(get_db)):
 def session_respond(
     request: Request,
     trial_id: int = Form(...),
-    response_text: str = Form(...),
+    response_text: str = Form(""),
+    timed_out: str = Form("0"),
     db: Session = Depends(get_db),
 ):
     participant = _current_participant(request, db)
@@ -272,15 +283,16 @@ def session_respond(
 
     trial = db.get(TrialResponse, trial_id)
     if trial and not trial.completed:
-        if not check_response_validity(response_text):
-            return RedirectResponse(url="/session?invalid_notice=1", status_code=303)
+        if timed_out != "1":
+            if not check_response_validity(response_text):
+                return RedirectResponse(url="/session?invalid_notice=1", status_code=303)
 
-        redirect_url = _content_safety_redirect(response_text)
-        if redirect_url:
-            return RedirectResponse(url=redirect_url, status_code=303)
+            redirect_url = _content_safety_redirect(response_text)
+            if redirect_url:
+                return RedirectResponse(url=redirect_url, status_code=303)
 
-        if check_profanity(response_text):
-            return RedirectResponse(url="/session?rewrite_notice=1", status_code=303)
+            if check_profanity(response_text):
+                return RedirectResponse(url="/session?rewrite_notice=1", status_code=303)
 
         trial.first_response = response_text
         trial.first_response_submitted_at = datetime.now(timezone.utc)
@@ -295,7 +307,8 @@ def session_respond(
 def session_first_response(
     request: Request,
     trial_id: int = Form(...),
-    response_text: str = Form(...),
+    response_text: str = Form(""),
+    timed_out: str = Form("0"),
     db: Session = Depends(get_db),
 ):
     participant = _current_participant(request, db)
@@ -304,15 +317,16 @@ def session_first_response(
 
     trial = db.get(TrialResponse, trial_id)
     if trial and not trial.completed and trial.first_response is None:
-        if not check_response_validity(response_text):
-            return RedirectResponse(url="/session?invalid_notice=1", status_code=303)
+        if timed_out != "1":
+            if not check_response_validity(response_text):
+                return RedirectResponse(url="/session?invalid_notice=1", status_code=303)
 
-        redirect_url = _content_safety_redirect(response_text)
-        if redirect_url:
-            return RedirectResponse(url=redirect_url, status_code=303)
+            redirect_url = _content_safety_redirect(response_text)
+            if redirect_url:
+                return RedirectResponse(url=redirect_url, status_code=303)
 
-        if check_profanity(response_text):
-            return RedirectResponse(url="/session?rewrite_notice=1", status_code=303)
+            if check_profanity(response_text):
+                return RedirectResponse(url="/session?rewrite_notice=1", status_code=303)
 
         trial.first_response = response_text
         trial.first_response_started_at = trial.first_response_started_at or datetime.now(timezone.utc)
@@ -330,7 +344,8 @@ def session_revise(
     request: Request,
     trial_id: int = Form(...),
     hint_level: int = Form(...),
-    response_text: str = Form(...),
+    response_text: str = Form(""),
+    timed_out: str = Form("0"),
     db: Session = Depends(get_db),
 ):
     participant = _current_participant(request, db)
@@ -341,19 +356,20 @@ def session_revise(
     if not trial or trial.completed:
         return RedirectResponse(url="/session", status_code=303)
 
-    if not check_response_validity(response_text):
-        return RedirectResponse(url="/session?invalid_notice=1", status_code=303)
+    if timed_out != "1":
+        if not check_response_validity(response_text):
+            return RedirectResponse(url="/session?invalid_notice=1", status_code=303)
 
-    redirect_url = _content_safety_redirect(response_text)
-    if redirect_url:
-        return RedirectResponse(url=redirect_url, status_code=303)
+        redirect_url = _content_safety_redirect(response_text)
+        if redirect_url:
+            return RedirectResponse(url=redirect_url, status_code=303)
 
-    # Checked here (before either branch saves anything) rather than inside
-    # evaluate_answer's scoring path: a profane revision should bounce back
-    # for a retry exactly like invalid/unsafe text does, not get saved as
-    # revised_response_1/2 and scored 0 with a hint.
-    if check_profanity(response_text):
-        return RedirectResponse(url="/session?rewrite_notice=1", status_code=303)
+        # Checked here (before either branch saves anything) rather than inside
+        # evaluate_answer's scoring path: a profane revision should bounce back
+        # for a retry exactly like invalid/unsafe text does, not get saved as
+        # revised_response_1/2 and scored 0 with a hint.
+        if check_profanity(response_text):
+            return RedirectResponse(url="/session?rewrite_notice=1", status_code=303)
 
     if hint_level == 1:
         # revision after the step-2 hint: save it, then let the AI check it again

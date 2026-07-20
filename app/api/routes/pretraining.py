@@ -190,7 +190,8 @@ def pretraining_item(request: Request, db: Session = Depends(get_db)):
 @router.post("/first-response")
 def pretraining_first_response(
     request: Request,
-    response_text: str = Form(...),
+    response_text: str = Form(""),
+    timed_out: str = Form("0"),
     db: Session = Depends(get_db),
 ):
     participant = _current_participant(request, db)
@@ -203,16 +204,17 @@ def pretraining_first_response(
 
     item = _current_item(db, state)
     if item is not None and item.hint_template and state["stage"] == "first":
-        if not check_response_validity(response_text):
-            return RedirectResponse(url=f"{ACTION_PREFIX}/item?invalid_notice=1", status_code=303)
+        if timed_out != "1":
+            if not check_response_validity(response_text):
+                return RedirectResponse(url=f"{ACTION_PREFIX}/item?invalid_notice=1", status_code=303)
 
-        redirect_url = _content_safety_redirect(response_text)
-        if redirect_url:
-            request.session["pretraining"] = state
-            return RedirectResponse(url=redirect_url, status_code=303)
+            redirect_url = _content_safety_redirect(response_text)
+            if redirect_url:
+                request.session["pretraining"] = state
+                return RedirectResponse(url=redirect_url, status_code=303)
 
-        if check_profanity(response_text):
-            return RedirectResponse(url=f"{ACTION_PREFIX}/item?rewrite_notice=1", status_code=303)
+            if check_profanity(response_text):
+                return RedirectResponse(url=f"{ACTION_PREFIX}/item?rewrite_notice=1", status_code=303)
 
         state["first_response"] = response_text
         score, feedback_message, missing = evaluate_answer(
@@ -233,7 +235,8 @@ def pretraining_first_response(
 def pretraining_revise(
     request: Request,
     hint_level: int = Form(...),
-    response_text: str = Form(...),
+    response_text: str = Form(""),
+    timed_out: str = Form("0"),
     db: Session = Depends(get_db),
 ):
     participant = _current_participant(request, db)
@@ -248,17 +251,18 @@ def pretraining_revise(
     if item is None or not item.hint_template:
         return RedirectResponse(url=f"{ACTION_PREFIX}/item", status_code=303)
 
-    if not check_response_validity(response_text):
-        return RedirectResponse(url=f"{ACTION_PREFIX}/item?invalid_notice=1", status_code=303)
+    if timed_out != "1":
+        if not check_response_validity(response_text):
+            return RedirectResponse(url=f"{ACTION_PREFIX}/item?invalid_notice=1", status_code=303)
 
-    redirect_url = _content_safety_redirect(response_text)
-    if redirect_url:
-        request.session["pretraining"] = state
-        return RedirectResponse(url=redirect_url, status_code=303)
+        redirect_url = _content_safety_redirect(response_text)
+        if redirect_url:
+            request.session["pretraining"] = state
+            return RedirectResponse(url=redirect_url, status_code=303)
 
-    if check_profanity(response_text):
-        request.session["pretraining"] = state
-        return RedirectResponse(url=f"{ACTION_PREFIX}/item?rewrite_notice=1", status_code=303)
+        if check_profanity(response_text):
+            request.session["pretraining"] = state
+            return RedirectResponse(url=f"{ACTION_PREFIX}/item?rewrite_notice=1", status_code=303)
 
     if hint_level == 1:
         state["revised_response_1"] = response_text
@@ -295,7 +299,8 @@ def pretraining_finalize(request: Request, db: Session = Depends(get_db)):
 @router.post("/respond")
 def pretraining_respond(
     request: Request,
-    response_text: str = Form(...),
+    response_text: str = Form(""),
+    timed_out: str = Form("0"),
     db: Session = Depends(get_db),
 ):
     participant = _current_participant(request, db)
@@ -308,15 +313,16 @@ def pretraining_respond(
 
     item = _current_item(db, state)
     if item is not None and not item.hint_template:
-        if not check_response_validity(response_text):
-            return RedirectResponse(url=f"{ACTION_PREFIX}/item?invalid_notice=1", status_code=303)
+        if timed_out != "1":
+            if not check_response_validity(response_text):
+                return RedirectResponse(url=f"{ACTION_PREFIX}/item?invalid_notice=1", status_code=303)
 
-        redirect_url = _content_safety_redirect(response_text)
-        if redirect_url:
-            return RedirectResponse(url=redirect_url, status_code=303)
+            redirect_url = _content_safety_redirect(response_text)
+            if redirect_url:
+                return RedirectResponse(url=redirect_url, status_code=303)
 
-        if check_profanity(response_text):
-            return RedirectResponse(url=f"{ACTION_PREFIX}/item?rewrite_notice=1", status_code=303)
+            if check_profanity(response_text):
+                return RedirectResponse(url=f"{ACTION_PREFIX}/item?rewrite_notice=1", status_code=303)
 
         _advance_to_next_item(state)
 
