@@ -20,7 +20,6 @@ from app.services.hint_service import (
 )
 from app.services.session_service import (
     advance_phase_if_needed,
-    check_wait_gate,
     completed_session_count,
     get_active_session,
     get_current_trial,
@@ -172,12 +171,6 @@ def session_screen(request: Request, db: Session = Depends(get_db)):
     if not participant:
         return RedirectResponse(url="/home", status_code=303)
 
-    available_at = check_wait_gate(db, participant)
-    if available_at is not None:
-        return templates.TemplateResponse(
-            request, "waiting.html", {"available_at_iso": available_at.isoformat()}
-        )
-
     study_session = get_active_session(db, participant)
     if study_session is None:
         target = get_target_session_count(participant)
@@ -201,11 +194,7 @@ def session_screen(request: Request, db: Session = Depends(get_db)):
 
         context = {"study_finished": study_finished}
         if not study_finished:
-            next_available_at = check_wait_gate(db, participant)
-            if next_available_at is not None:
-                context["available_at_iso"] = next_available_at.isoformat()
-            else:
-                context["can_continue"] = True
+            context["can_continue"] = True
 
         return templates.TemplateResponse(request, "session_complete.html", context)
 
@@ -278,8 +267,7 @@ def session_start(request: Request, db: Session = Depends(get_db)):
     if not participant:
         return RedirectResponse(url="/home", status_code=303)
 
-    if check_wait_gate(db, participant) is None:
-        get_or_create_active_session(db, participant)
+    get_or_create_active_session(db, participant)
 
     return RedirectResponse(url="/session", status_code=303)
 

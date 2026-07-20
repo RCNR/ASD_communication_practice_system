@@ -27,17 +27,6 @@ def _require_admin(request: Request):
     return None
 
 
-def _combine_seconds(days: int, hours: int, minutes: int, seconds: int) -> int:
-    return days * 86400 + hours * 3600 + minutes * 60 + seconds
-
-
-def _split_seconds(total: int) -> dict:
-    days, remainder = divmod(total, 86400)
-    hours, remainder = divmod(remainder, 3600)
-    minutes, seconds = divmod(remainder, 60)
-    return {"days": days, "hours": hours, "minutes": minutes, "seconds": seconds}
-
-
 @router.get("/logout")
 def admin_logout(request: Request):
     request.session.pop("is_admin", None)
@@ -102,18 +91,6 @@ def admin_participant_new_submit(
     baseline_length: int = Form(...),
     intervention_length: int = Form(20),
     maintenance_length: int = Form(2),
-    baseline_wait_d: int = Form(0),
-    baseline_wait_h: int = Form(0),
-    baseline_wait_m: int = Form(0),
-    baseline_wait_s: int = Form(0),
-    intervention_wait_d: int = Form(0),
-    intervention_wait_h: int = Form(0),
-    intervention_wait_m: int = Form(0),
-    intervention_wait_s: int = Form(0),
-    maintenance_wait_d: int = Form(0),
-    maintenance_wait_h: int = Form(0),
-    maintenance_wait_m: int = Form(0),
-    maintenance_wait_s: int = Form(0),
     db: Session = Depends(get_db),
 ):
     redirect = _require_admin(request)
@@ -137,13 +114,6 @@ def admin_participant_new_submit(
             maintenance_length=maintenance_length,
             current_phase="baseline",
             status="active",
-            baseline_wait_seconds=_combine_seconds(baseline_wait_d, baseline_wait_h, baseline_wait_m, baseline_wait_s),
-            intervention_wait_seconds=_combine_seconds(
-                intervention_wait_d, intervention_wait_h, intervention_wait_m, intervention_wait_s
-            ),
-            maintenance_wait_seconds=_combine_seconds(
-                maintenance_wait_d, maintenance_wait_h, maintenance_wait_m, maintenance_wait_s
-            ),
         )
     )
     db.commit()
@@ -160,16 +130,10 @@ def admin_participant_edit_form(request: Request, participant_code: str, db: Ses
     if not participant:
         return RedirectResponse(url="/admin", status_code=303)
 
-    wait = {
-        "baseline": _split_seconds(participant.baseline_wait_seconds),
-        "intervention": _split_seconds(participant.intervention_wait_seconds),
-        "maintenance": _split_seconds(participant.maintenance_wait_seconds),
-    }
-
     return templates.TemplateResponse(
         request,
         "admin_participant_edit.html",
-        {"participant": participant, "wait": wait, "error": None},
+        {"participant": participant, "error": None},
     )
 
 
@@ -182,18 +146,6 @@ def admin_participant_edit_submit(
     maintenance_length: int = Form(...),
     current_phase: str = Form(...),
     status: str = Form(...),
-    baseline_wait_d: int = Form(0),
-    baseline_wait_h: int = Form(0),
-    baseline_wait_m: int = Form(0),
-    baseline_wait_s: int = Form(0),
-    intervention_wait_d: int = Form(0),
-    intervention_wait_h: int = Form(0),
-    intervention_wait_m: int = Form(0),
-    intervention_wait_s: int = Form(0),
-    maintenance_wait_d: int = Form(0),
-    maintenance_wait_h: int = Form(0),
-    maintenance_wait_m: int = Form(0),
-    maintenance_wait_s: int = Form(0),
     new_password: str = Form(""),
     db: Session = Depends(get_db),
 ):
@@ -205,23 +157,17 @@ def admin_participant_edit_submit(
     if not participant:
         return RedirectResponse(url="/admin", status_code=303)
 
-    wait = {
-        "baseline": _split_seconds(participant.baseline_wait_seconds),
-        "intervention": _split_seconds(participant.intervention_wait_seconds),
-        "maintenance": _split_seconds(participant.maintenance_wait_seconds),
-    }
-
     if current_phase not in PHASE_ORDER:
         return templates.TemplateResponse(
             request,
             "admin_participant_edit.html",
-            {"participant": participant, "wait": wait, "error": "올바르지 않은 단계입니다."},
+            {"participant": participant, "error": "올바르지 않은 단계입니다."},
         )
     if status not in ("active", "paused", "dropped"):
         return templates.TemplateResponse(
             request,
             "admin_participant_edit.html",
-            {"participant": participant, "wait": wait, "error": "올바르지 않은 상태입니다."},
+            {"participant": participant, "error": "올바르지 않은 상태입니다."},
         )
 
     participant.baseline_length = baseline_length
@@ -229,13 +175,6 @@ def admin_participant_edit_submit(
     participant.maintenance_length = maintenance_length
     participant.current_phase = current_phase
     participant.status = status
-    participant.baseline_wait_seconds = _combine_seconds(baseline_wait_d, baseline_wait_h, baseline_wait_m, baseline_wait_s)
-    participant.intervention_wait_seconds = _combine_seconds(
-        intervention_wait_d, intervention_wait_h, intervention_wait_m, intervention_wait_s
-    )
-    participant.maintenance_wait_seconds = _combine_seconds(
-        maintenance_wait_d, maintenance_wait_h, maintenance_wait_m, maintenance_wait_s
-    )
     if new_password:
         participant.password_hash = hashlib.sha256(new_password.encode()).hexdigest()
     db.commit()
