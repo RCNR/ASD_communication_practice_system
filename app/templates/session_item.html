@@ -21,12 +21,40 @@
       <p>"{{ item.item_text }}"</p>
     </div>
 
+    {% if rewrite_notice %}
+    <div class="warning-box">
+      <p style="margin-bottom: 0;">적절하지 않은 내용이 있어요. 다시 작성해주세요.</p>
+    </div>
+    {% endif %}
+
+    {% if invalid_notice %}
+    <div class="warning-box">
+      <p style="margin-bottom: 0;">문장이나 단어로 입력해주세요.</p>
+    </div>
+    {% endif %}
+
     <p>친구에게 보낼 답장을 써보세요.</p>
-    <form method="post" action="{{ action_prefix|default('/session') }}/respond">
+    <form method="post" action="{{ action_prefix|default('/session') }}/respond" data-ai-loading>
       <input type="hidden" name="trial_id" value="{{ trial_id }}" />
       <textarea name="response_text" rows="4" required></textarea>
       <button type="submit">다음</button>
     </form>
   </div>
+
+  <div id="ai-loading-overlay" class="ai-loading-overlay" hidden>
+    <div class="ai-loading-box">
+      <img class="ai-loading-icon" src="/static/ai-agent.png" alt="AI 판단 중" />
+      <p>AI가 판단 중이에요...</p>
+    </div>
+  </div>
+
+  <script>
+    const aiLoadingOverlay = document.getElementById("ai-loading-overlay");
+    document.querySelectorAll("form[data-ai-loading]").forEach((form) => {
+      form.addEventListener("submit", () => {
+        aiLoadingOverlay.hidden = false;
+      });
+    });
+  </script>
 </body>
 </html>

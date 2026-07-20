@@ -35,31 +35,19 @@ templates = Jinja2Templates(directory="app/templates")
 
 PHASE_LABEL = {"baseline": "기초선", "intervention": "중재", "maintenance": "유지"}
 
-SAFETY_REWRITE_LIMIT = 3
 
-
-def _apply_content_safety(db: Session, trial: TrialResponse, response_text: str) -> str | None:
-    """Runs the AI safety check for a piece of intervention-phase text.
-    Returns a redirect path if the submission should be rejected (ask to
-    rewrite, or stop once the rewrite cap is exceeded), or None if the text
-    is clean and the caller should proceed with saving it.
-
-    Every flagged category - including self_harm/abuse - goes through the
-    same rewrite loop rather than stopping on first mention; the trial only
-    escalates to the safety-warning screen once SAFETY_REWRITE_LIMIT is
-    exceeded."""
+def _content_safety_redirect(response_text: str) -> str | None:
+    """Runs the AI safety-category check (self_harm/abuse/violence/sexual/
+    privacy). Returns a redirect path if the submission should be rejected
+    and resubmitted, or None if the text is clean. No escalation/cap: a
+    repeated flag just asks for another rewrite, same as the validity and
+    profanity checks."""
     content_flag = check_content_safety(response_text)
 
     if content_flag == CHECK_FAILED:
         return "/session?retry_notice=1"
 
     if content_flag:
-        trial.safety_rewrite_count += 1
-        if trial.safety_rewrite_count > SAFETY_REWRITE_LIMIT:
-            trial.safety_flag = content_flag
-            db.commit()
-            return "/session"
-        db.commit()
         return "/session?rewrite_notice=1"
 
     return None
@@ -198,9 +186,6 @@ def session_screen(request: Request, db: Session = Depends(get_db)):
 
         return templates.TemplateResponse(request, "session_complete.html", context)
 
-    if trial.safety_flag:
-        return templates.TemplateResponse(request, "safety_warning.html", {"trial_id": trial.id})
-
     if trial.first_response_started_at is None and study_session.phase != "intervention":
         trial.first_response_started_at = datetime.now(timezone.utc)
         db.commit()
@@ -232,6 +217,8 @@ def session_screen(request: Request, db: Session = Depends(get_db)):
             "trial_id": trial.id,
             "progress_current": trial.item_order,
             "progress_total": study_session.planned_item_count,
+            "rewrite_notice": request.query_params.get("rewrite_notice") == "1",
+            "invalid_notice": request.query_params.get("invalid_notice") == "1",
             **session_label,
         },
     )
@@ -285,6 +272,16 @@ def session_respond(
 
     trial = db.get(TrialResponse, trial_id)
     if trial and not trial.completed:
+        if not check_response_validity(response_text):
+            return RedirectResponse(url="/session?invalid_notice=1", status_code=303)
+
+        redirect_url = _content_safety_redirect(response_text)
+        if redirect_url:
+            return RedirectResponse(url=redirect_url, status_code=303)
+
+        if check_profanity(response_text):
+            return RedirectResponse(url="/session?rewrite_notice=1", status_code=303)
+
         trial.first_response = response_text
         trial.first_response_submitted_at = datetime.now(timezone.utc)
         trial.final_response = response_text
@@ -310,7 +307,7 @@ def session_first_response(
         if not check_response_validity(response_text):
             return RedirectResponse(url="/session?invalid_notice=1", status_code=303)
 
-        redirect_url = _apply_content_safety(db, trial, response_text)
+        redirect_url = _content_safety_redirect(response_text)
         if redirect_url:
             return RedirectResponse(url=redirect_url, status_code=303)
 
@@ -347,7 +344,7 @@ def session_revise(
     if not check_response_validity(response_text):
         return RedirectResponse(url="/session?invalid_notice=1", status_code=303)
 
-    redirect_url = _apply_content_safety(db, trial, response_text)
+    redirect_url = _content_safety_redirect(response_text)
     if redirect_url:
         return RedirectResponse(url=redirect_url, status_code=303)
 
@@ -394,25 +391,6 @@ def session_finalize(
 
     trial = db.get(TrialResponse, trial_id)
     if trial and not trial.completed and trial.first_response is not None:
-        trial.final_response = trial.revised_response_2 or trial.revised_response_1 or trial.first_response
-        trial.completed = True
-        db.commit()
-
-    return RedirectResponse(url="/session", status_code=303)
-
-
-@router.post("/session/safety-acknowledge")
-def session_safety_acknowledge(
-    request: Request,
-    trial_id: int = Form(...),
-    db: Session = Depends(get_db),
-):
-    participant = _current_participant(request, db)
-    if not participant:
-        return RedirectResponse(url="/home", status_code=303)
-
-    trial = db.get(TrialResponse, trial_id)
-    if trial and not trial.completed and trial.safety_flag:
         trial.final_response = trial.revised_response_2 or trial.revised_response_1 or trial.first_response
         trial.completed = True
         db.commit()

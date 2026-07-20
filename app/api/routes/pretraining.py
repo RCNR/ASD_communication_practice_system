@@ -5,7 +5,7 @@ from fastapi.responses import RedirectResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
 
-from app.api.routes.student import SAFETY_REWRITE_LIMIT, _current_participant
+from app.api.routes.student import _current_participant
 from app.core.database import get_db
 from app.models.item import Item
 from app.services.hint_service import (
@@ -58,8 +58,6 @@ def _init_state() -> dict:
         "revised_response_1": None,
         "missing": None,
         "feedback_message": None,
-        "safety_flag": None,
-        "safety_rewrite_count": 0,
     }
 
 
@@ -70,25 +68,19 @@ def _advance_to_next_item(state: dict) -> None:
     state["revised_response_1"] = None
     state["missing"] = None
     state["feedback_message"] = None
-    state["safety_flag"] = None
-    state["safety_rewrite_count"] = 0
 
 
-def _apply_content_safety(state: dict, response_text: str) -> str | None:
-    """Ephemeral counterpart to student.py's _apply_content_safety: mutates
-    the session-stored state dict instead of a persisted TrialResponse row.
-    Returns a redirect path if the submission should be rejected, or None if
-    the caller should proceed with saving it."""
+def _content_safety_redirect(response_text: str) -> str | None:
+    """Ephemeral counterpart to student.py's _content_safety_redirect: no
+    state to mutate since the check just gates whether the caller proceeds.
+    Returns a redirect path if the submission should be rejected and
+    resubmitted, or None if the text is clean."""
     content_flag = check_content_safety(response_text)
 
     if content_flag == CHECK_FAILED:
         return f"{ACTION_PREFIX}/item?retry_notice=1"
 
     if content_flag:
-        state["safety_rewrite_count"] += 1
-        if state["safety_rewrite_count"] > SAFETY_REWRITE_LIMIT:
-            state["safety_flag"] = content_flag
-            return f"{ACTION_PREFIX}/item"
         return f"{ACTION_PREFIX}/item?rewrite_notice=1"
 
     return None
@@ -130,11 +122,6 @@ def pretraining_item(request: Request, db: Session = Depends(get_db)):
             participant.pretraining_completed = True
             db.commit()
         return templates.TemplateResponse(request, "pretraining_complete.html")
-
-    if state["safety_flag"]:
-        return templates.TemplateResponse(
-            request, "safety_warning.html", {"trial_id": state["index"], "action_prefix": ACTION_PREFIX}
-        )
 
     item = items[state["index"]]
     session_label = {
@@ -219,7 +206,7 @@ def pretraining_first_response(
         if not check_response_validity(response_text):
             return RedirectResponse(url=f"{ACTION_PREFIX}/item?invalid_notice=1", status_code=303)
 
-        redirect_url = _apply_content_safety(state, response_text)
+        redirect_url = _content_safety_redirect(response_text)
         if redirect_url:
             request.session["pretraining"] = state
             return RedirectResponse(url=redirect_url, status_code=303)
@@ -264,7 +251,7 @@ def pretraining_revise(
     if not check_response_validity(response_text):
         return RedirectResponse(url=f"{ACTION_PREFIX}/item?invalid_notice=1", status_code=303)
 
-    redirect_url = _apply_content_safety(state, response_text)
+    redirect_url = _content_safety_redirect(response_text)
     if redirect_url:
         request.session["pretraining"] = state
         return RedirectResponse(url=redirect_url, status_code=303)
@@ -321,23 +308,16 @@ def pretraining_respond(
 
     item = _current_item(db, state)
     if item is not None and not item.hint_template:
-        _advance_to_next_item(state)
+        if not check_response_validity(response_text):
+            return RedirectResponse(url=f"{ACTION_PREFIX}/item?invalid_notice=1", status_code=303)
 
-    request.session["pretraining"] = state
-    return RedirectResponse(url=f"{ACTION_PREFIX}/item", status_code=303)
+        redirect_url = _content_safety_redirect(response_text)
+        if redirect_url:
+            return RedirectResponse(url=redirect_url, status_code=303)
 
+        if check_profanity(response_text):
+            return RedirectResponse(url=f"{ACTION_PREFIX}/item?rewrite_notice=1", status_code=303)
 
-@router.post("/safety-acknowledge")
-def pretraining_safety_acknowledge(request: Request, db: Session = Depends(get_db)):
-    participant = _current_participant(request, db)
-    if not participant:
-        return RedirectResponse(url="/home", status_code=303)
-
-    state = request.session.get("pretraining")
-    if state is None:
-        return RedirectResponse(url=ACTION_PREFIX, status_code=303)
-
-    if state["safety_flag"]:
         _advance_to_next_item(state)
 
     request.session["pretraining"] = state
