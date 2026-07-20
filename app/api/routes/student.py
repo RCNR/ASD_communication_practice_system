@@ -302,6 +302,12 @@ def session_respond(
         trial.completed = True
         db.commit()
 
+        # Baseline/maintenance never show a hint or ask for a revision - this
+        # is a silent scoring-only pass so the score shows up in the admin
+        # participant-detail table, the same way intervention scores do.
+        item = db.get(Item, trial.item_id)
+        evaluate_answer(db, trial, item, hint_level=1, student_response=response_text)
+
     return RedirectResponse(url="/session", status_code=303)
 
 
