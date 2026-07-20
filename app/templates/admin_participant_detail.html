@@ -28,10 +28,9 @@
         <th>예시 사용</th>
         <th>최종 답장</th>
         <th>완료</th>
-        <th>안전 플래그</th>
       </tr>
       {% for row in trial_rows %}
-      <tr{% if row.safety_flag %} class="flagged"{% endif %}>
+      <tr>
         <td>{{ row.phase }}</td>
         <td>{{ row.session_number }}</td>
         <td>{{ row.item_order }}</td>
@@ -46,7 +45,6 @@
         <td>{{ "예" if row.example_used else "" }}</td>
         <td class="wrap-cell">{{ row.final_response or "" }}</td>
         <td>{{ "완료" if row.completed else "" }}</td>
-        <td>{% if row.safety_flag %}<span class="badge">{{ row.safety_flag }}</span>{% endif %}</td>
       </tr>
       {% endfor %}
     </table>

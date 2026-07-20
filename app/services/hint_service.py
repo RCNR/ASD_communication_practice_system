@@ -93,13 +93,11 @@ CONTENT_SAFETY_SCHEMA = {
     "additionalProperties": False,
 }
 
-# All flagged categories go through the same rewrite loop (ask the student to
-# rewrite, with a retry cap - see student.py's SAFETY_REWRITE_LIMIT). Once the
-# cap is exceeded for any category - including self_harm/abuse - the trial
-# escalates to the safety-warning stop screen, so a repeated disclosure still
-# eventually reaches a human even though it isn't stopped on first mention.
-# inappropriate (profanity) is deliberately NOT here: it's scored as a normal
-# 0-point response instead (see evaluate_answer), not a rewrite-loop category.
+# All flagged categories are treated the same way: the student is asked to
+# rewrite, with no cap or escalation - a repeated flag just keeps asking for
+# another rewrite (see student.py's _content_safety_redirect / pretraining.py's
+# counterpart). inappropriate (profanity) is deliberately NOT here: it's
+# screened separately by check_profanity before save, not through this filter.
 REWRITE_CATEGORIES = ("self_harm", "abuse", "violence", "sexual", "privacy")
 
 CHECK_FAILED = "check_failed"

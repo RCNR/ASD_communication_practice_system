@@ -56,18 +56,10 @@ def admin_dashboard(request: Request, db: Session = Depends(get_db)):
             }
             for phase in PHASE_ORDER
         }
-        safety_flag_count = (
-            db.query(TrialResponse)
-            .join(StudySession, TrialResponse.session_id == StudySession.id)
-            .filter(StudySession.participant_code == participant.participant_code)
-            .filter(TrialResponse.safety_flag.isnot(None))
-            .count()
-        )
         rows.append(
             {
                 "participant": participant,
                 "session_counts": session_counts,
-                "safety_flag_count": safety_flag_count,
             }
         )
 
@@ -221,7 +213,6 @@ def admin_participant_detail(request: Request, participant_code: str, db: Sessio
                 "example_used": trial.example_used,
                 "final_response": trial.final_response,
                 "completed": trial.completed,
-                "safety_flag": trial.safety_flag,
             }
         )
 
