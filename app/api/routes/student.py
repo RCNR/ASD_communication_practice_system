@@ -229,6 +229,8 @@ def session_screen(request: Request, db: Session = Depends(get_db)):
             "progress_total": study_session.planned_item_count,
             "rewrite_notice": request.query_params.get("rewrite_notice") == "1",
             "invalid_notice": request.query_params.get("invalid_notice") == "1",
+            "timer_seconds": RESPONSE_TIMER_SECONDS,
+            "timer_label": _timer_label(RESPONSE_TIMER_SECONDS),
             **session_label,
         },
     )

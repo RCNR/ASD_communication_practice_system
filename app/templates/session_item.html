@@ -33,8 +33,9 @@
     </div>
     {% endif %}
 
+    <p class="muted" data-timer-label>{{ timer_label }}</p>
     <p>친구에게 보낼 답장을 써보세요.</p>
-    <form method="post" action="{{ action_prefix|default('/session') }}/respond" data-ai-loading>
+    <form method="post" action="{{ action_prefix|default('/session') }}/respond" data-ai-loading data-timer>
       <input type="hidden" name="trial_id" value="{{ trial_id }}" />
       <textarea name="response_text" rows="4" required></textarea>
       <button type="submit">다음</button>
@@ -55,6 +56,56 @@
         aiLoadingOverlay.hidden = false;
       });
     });
+
+    const timerForm = document.querySelector("form[data-timer]");
+    if (timerForm) {
+      const timerLabel = document.querySelector("[data-timer-label]");
+      const timedOutInput = document.createElement("input");
+      timedOutInput.type = "hidden";
+      timedOutInput.name = "timed_out";
+      timedOutInput.value = "0";
+      timerForm.appendChild(timedOutInput);
+
+      // Anchored to a persisted start time (not a plain countdown) so a
+      // rejected submission (invalid/rewrite notice) reloading this same
+      // item doesn't give the student a fresh 2 minutes - the key only
+      // changes when the item actually changes.
+      const timerKey = "timer:{{ trial_id }}";
+      const storedStart = sessionStorage.getItem(timerKey);
+      const startedAt = storedStart ? parseInt(storedStart, 10) : Date.now();
+      if (!storedStart) {
+        sessionStorage.setItem(timerKey, String(startedAt));
+      }
+
+      function updateTimer() {
+        const elapsed = Math.floor((Date.now() - startedAt) / 1000);
+        const remaining = Math.max(0, {{ timer_seconds }} - elapsed);
+        const minutes = String(Math.floor(remaining / 60)).padStart(2, "0");
+        const seconds = String(remaining % 60).padStart(2, "0");
+        timerLabel.textContent = `남은 시간: ${minutes}:${seconds}`;
+        if (remaining <= 0) {
+          clearInterval(timerInterval);
+          timedOutInput.value = "1";
+          timerForm.submit();
+        }
+      }
+
+      const timerInterval = setInterval(updateTimer, 1000);
+      updateTimer();
+
+      // Leaving this page any other way than submitting (e.g. the home
+      // button) should NOT count against the 2 minutes - drop the stored
+      // start time so a later visit to this same item starts a fresh timer.
+      let isSubmitting = false;
+      timerForm.addEventListener("submit", () => {
+        isSubmitting = true;
+      });
+      window.addEventListener("pagehide", () => {
+        if (!isSubmitting) {
+          sessionStorage.removeItem(timerKey);
+        }
+      });
+    }
   </script>
 </body>
 </html>

@@ -5,7 +5,7 @@ from fastapi.responses import RedirectResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
 
-from app.api.routes.student import _current_participant
+from app.api.routes.student import RESPONSE_TIMER_SECONDS, _current_participant, _timer_label
 from app.core.database import get_db
 from app.models.item import Item
 from app.services.hint_service import (
@@ -139,6 +139,8 @@ def pretraining_item(request: Request, db: Session = Depends(get_db)):
         "rewrite_notice": request.query_params.get("rewrite_notice") == "1",
         "retry_notice": request.query_params.get("retry_notice") == "1",
         "invalid_notice": request.query_params.get("invalid_notice") == "1",
+        "timer_seconds": RESPONSE_TIMER_SECONDS,
+        "timer_label": _timer_label(RESPONSE_TIMER_SECONDS),
         **session_label,
     }
 

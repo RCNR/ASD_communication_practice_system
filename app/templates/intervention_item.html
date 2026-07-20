@@ -40,7 +40,7 @@
     {% endif %}
 
     {% if stage == "first" %}
-    <p class="muted" data-timer-label>남은 시간: 02:00</p>
+    <p class="muted" data-timer-label>{{ timer_label }}</p>
     <p>친구에게 보낼 답장을 먼저 써보세요.</p>
     <form method="post" action="{{ action_prefix|default('/session') }}/first-response" data-ai-loading data-timer>
       <input type="hidden" name="trial_id" value="{{ trial_id }}" />
@@ -80,7 +80,7 @@
       <span class="label">힌트</span>
       {{ feedback_message }}
     </div>
-    <p class="muted" data-timer-label>남은 시간: 02:00</p>
+    <p class="muted" data-timer-label>{{ timer_label }}</p>
     <form method="post" action="{{ action_prefix|default('/session') }}/revise" data-ai-loading data-timer>
       <input type="hidden" name="trial_id" value="{{ trial_id }}" />
       <input type="hidden" name="hint_level" value="1" />
@@ -94,7 +94,7 @@
       "{{ example_text }}"
       <p class="muted" style="margin: 8px 0 0;">위 참고 답장을 그대로 사용해보세요.</p>
     </div>
-    <p class="muted" data-timer-label>남은 시간: 02:00</p>
+    <p class="muted" data-timer-label>{{ timer_label }}</p>
     <form method="post" action="{{ action_prefix|default('/session') }}/revise" data-timer>
       <input type="hidden" name="trial_id" value="{{ trial_id }}" />
       <input type="hidden" name="hint_level" value="2" />
@@ -142,7 +142,7 @@
 
       function updateTimer() {
         const elapsed = Math.floor((Date.now() - startedAt) / 1000);
-        const remaining = Math.max(0, 120 - elapsed);
+        const remaining = Math.max(0, {{ timer_seconds }} - elapsed);
         const minutes = String(Math.floor(remaining / 60)).padStart(2, "0");
         const seconds = String(remaining % 60).padStart(2, "0");
         timerLabel.textContent = `남은 시간: ${minutes}:${seconds}`;

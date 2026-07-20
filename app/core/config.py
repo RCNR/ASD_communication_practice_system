@@ -9,6 +9,7 @@ class Settings(BaseSettings):
     SECRET_KEY: str = "${SECRET_KEY}"
     ADMIN_USERNAME: str = "admin"
     ADMIN_PASSWORD: str = "${ADMIN_PASSWORD}"
+    RESPONSE_TIMER_SECONDS: int = "${RESPONSE_TIMER_SECONDS}"
 
     class Config:
         env_file = ".env"
