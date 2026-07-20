@@ -21,6 +21,28 @@ router = APIRouter(prefix="/admin")
 templates = Jinja2Templates(directory="app/templates")
 
 
+def _measured_score(trial: TrialResponse, eval_log) -> int | None:
+    """The score used for research measurement/display. Forced to 0 if the
+    participant's true independent first attempt (first_attempt_response)
+    was rejected by the validity/safety/profanity gate before an acceptable
+    answer was reached (i.e. it differs from what actually got saved into
+    first_response) - regardless of what that accepted retry's own AI
+    judgment (eval_log.score_level) came out to.
+
+    This is a display-only override: it never touches AiHintLog.score_level
+    itself, which still drives the intervention hint/pass flow honestly (see
+    student.py's session_first_response) - only what's shown/summed here."""
+    if eval_log is None:
+        return None
+    if (
+        trial.first_attempt_response is not None
+        and trial.first_response is not None
+        and trial.first_attempt_response != trial.first_response
+    ):
+        return 0
+    return eval_log.score_level
+
+
 def _require_admin(request: Request):
     if not request.session.get("is_admin"):
         return RedirectResponse(url="/home", status_code=303)
@@ -203,8 +225,9 @@ def admin_participant_detail(request: Request, participant_code: str, db: Sessio
                 "session_number": study_session.session_number,
                 "item_order": trial.item_order,
                 "item_text": item.item_text,
+                "first_attempt_response": trial.first_attempt_response,
                 "first_response": trial.first_response,
-                "score1": eval1.score_level if eval1 else None,
+                "score1": _measured_score(trial, eval1),
                 "hint1": get_latest_hint_message(db, trial.id, 1),
                 "revised_response_1": trial.revised_response_1,
                 "score2": eval2.score_level if eval2 else None,
@@ -250,7 +273,7 @@ def admin_scores(request: Request, participant_code: str = "", db: Session = Dep
     for trial, study_session, item, participant in trials:
         eval1 = get_latest_evaluation(db, trial.id, 1)
         eval2 = get_latest_evaluation(db, trial.id, 2)
-        score1 = eval1.score_level if eval1 else None
+        score1 = _measured_score(trial, eval1)
         score_rows.append(
             {
                 "participant_code": participant.participant_code,

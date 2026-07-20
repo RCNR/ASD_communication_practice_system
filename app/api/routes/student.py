@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 
 from app.core.config import settings
 from app.core.database import get_db
+from app.models.ai_hint_log import AiHintLog
 from app.models.item import Item
 from app.models.participant import Participant
 from app.models.trial_response import TrialResponse
@@ -285,6 +286,10 @@ def session_respond(
 
     trial = db.get(TrialResponse, trial_id)
     if trial and not trial.completed:
+        if trial.first_attempt_response is None:
+            trial.first_attempt_response = response_text
+            db.commit()
+
         if timed_out != "1":
             if not check_response_validity(response_text):
                 return RedirectResponse(url="/session?invalid_notice=1", status_code=303)
@@ -305,8 +310,31 @@ def session_respond(
         # Baseline/maintenance never show a hint or ask for a revision - this
         # is a silent scoring-only pass so the score shows up in the admin
         # participant-detail table, the same way intervention scores do.
-        item = db.get(Item, trial.item_id)
-        evaluate_answer(db, trial, item, hint_level=1, student_response=response_text)
+        if trial.first_attempt_response != response_text:
+            # The participant's true independent first attempt (whatever's in
+            # first_attempt_response) was rejected by the validity/safety/
+            # profanity gate before this accepted retry was reached, so the
+            # measured score is 0 regardless of what this retry would have
+            # scored - skip the AI call entirely rather than spend an API
+            # call on a score that's already decided.
+            db.add(
+                AiHintLog(
+                    trial_id=trial.id,
+                    hint_level=1,
+                    score_level=0,
+                    acknowledge=False,
+                    continue_flag=False,
+                    fallback_used=False,
+                    contains_scoring=True,
+                    contains_full_answer=False,
+                    safety_flag="none",
+                    profanity_detected=False,
+                )
+            )
+            db.commit()
+        else:
+            item = db.get(Item, trial.item_id)
+            evaluate_answer(db, trial, item, hint_level=1, student_response=response_text)
 
     return RedirectResponse(url="/session", status_code=303)
 
@@ -325,6 +353,10 @@ def session_first_response(
 
     trial = db.get(TrialResponse, trial_id)
     if trial and not trial.completed and trial.first_response is None:
+        if trial.first_attempt_response is None:
+            trial.first_attempt_response = response_text
+            db.commit()
+
         if timed_out != "1":
             if not check_response_validity(response_text):
                 return RedirectResponse(url="/session?invalid_notice=1", status_code=303)
