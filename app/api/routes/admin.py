@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import hashlib
-from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, Form, Request, UploadFile
 from fastapi.responses import RedirectResponse
@@ -9,12 +8,10 @@ from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.models.ai_hint_log import AiHintLog
 from app.models.item import Item
 from app.models.participant import Participant
 from app.models.phase_config import PhaseConfig
 from app.models.session import StudySession
-from app.models.session_fidelity_check import SessionFidelityCheck
 from app.models.session_item import SessionItem
 from app.models.trial_response import TrialResponse
 from app.services.item_import_service import parse_item_file, upsert_items
@@ -478,117 +475,6 @@ def admin_pretraining_items_delete_all(request: Request, db: Session = Depends(g
         "admin_pretraining_items.html",
         {"items": items, "result": None, "delete_message": f"{deleted_count}개 문항을 삭제했습니다."},
     )
-
-
-FIDELITY_FIELDS = [
-    "hint_matches_item",
-    "no_new_situation",
-    "no_scoring",
-    "no_points_given",
-    "no_full_answer_given",
-    "no_personal_info_request",
-    "no_risky_advice",
-    "hint_level_respected",
-]
-
-
-@router.get("/fidelity")
-def admin_fidelity_list(request: Request, db: Session = Depends(get_db)):
-    redirect = _require_admin(request)
-    if redirect:
-        return redirect
-
-    sessions = (
-        db.query(StudySession)
-        .filter_by(phase="intervention", status="completed")
-        .order_by(StudySession.participant_code, StudySession.session_number)
-        .all()
-    )
-
-    rows = []
-    for study_session in sessions:
-        hint_count = (
-            db.query(AiHintLog)
-            .join(TrialResponse, AiHintLog.trial_id == TrialResponse.id)
-            .filter(TrialResponse.session_id == study_session.id)
-            .count()
-        )
-        check = db.get(SessionFidelityCheck, study_session.id)
-        rows.append(
-            {
-                "session": study_session,
-                "hint_count": hint_count,
-                "reviewed": check is not None and check.reviewed_at is not None,
-            }
-        )
-
-    return templates.TemplateResponse(request, "admin_fidelity_list.html", {"rows": rows})
-
-
-@router.get("/fidelity/{session_id}")
-def admin_fidelity_detail(request: Request, session_id: int, db: Session = Depends(get_db)):
-    redirect = _require_admin(request)
-    if redirect:
-        return redirect
-
-    study_session = db.get(StudySession, session_id)
-    if not study_session:
-        return RedirectResponse(url="/admin/fidelity", status_code=303)
-
-    hint_logs = (
-        db.query(AiHintLog)
-        .join(TrialResponse, AiHintLog.trial_id == TrialResponse.id)
-        .filter(TrialResponse.session_id == session_id)
-        .order_by(AiHintLog.created_at)
-        .all()
-    )
-
-    summary = {
-        "total": len(hint_logs),
-        "any_scoring": any(log.contains_scoring for log in hint_logs),
-        "any_full_answer": any(log.contains_full_answer for log in hint_logs),
-        "any_unsafe": any(log.safety_flag != "none" for log in hint_logs),
-        "any_fallback": any(log.fallback_used for log in hint_logs),
-    }
-
-    check = db.get(SessionFidelityCheck, session_id)
-
-    return templates.TemplateResponse(
-        request,
-        "admin_fidelity_detail.html",
-        {
-            "study_session": study_session,
-            "hint_logs": hint_logs,
-            "summary": summary,
-            "check": check,
-        },
-    )
-
-
-@router.post("/fidelity/{session_id}")
-async def admin_fidelity_submit(request: Request, session_id: int, db: Session = Depends(get_db)):
-    redirect = _require_admin(request)
-    if redirect:
-        return redirect
-
-    study_session = db.get(StudySession, session_id)
-    if not study_session:
-        return RedirectResponse(url="/admin/fidelity", status_code=303)
-
-    form = await request.form()
-
-    check = db.get(SessionFidelityCheck, session_id)
-    if check is None:
-        check = SessionFidelityCheck(session_id=session_id)
-        db.add(check)
-
-    for field in FIDELITY_FIELDS:
-        setattr(check, field, field in form)
-    check.note = form.get("note") or None
-    check.reviewed_at = datetime.now(timezone.utc)
-
-    db.commit()
-    return RedirectResponse(url=f"/admin/fidelity/{session_id}", status_code=303)
 
 
 @router.get("/phase-config")

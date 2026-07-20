@@ -23,7 +23,6 @@ def init_db() -> None:
         participant,
         phase_config,
         session,
-        session_fidelity_check,
         session_item,
         trial_response,
     )
