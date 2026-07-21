@@ -1,0 +1,118 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <!-- 깔끔한 한글 폰트 Pretendard 적용 -->
+  <link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css" rel="stylesheet" />
+  <title>ION - ASD Communication Practice System</title>
+  
+  <style>
+    body, html {
+      margin: 0;
+      padding: 0;
+      height: 100%;
+      font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, system-ui, Roboto, sans-serif;
+    }
+
+    /* 1. 부드럽게 움직이는 그라데이션 배경 */
+    .background {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      /* 마음이 편안해지는 파스텔 블루 & 퍼플 톤 */
+      background: linear-gradient(120deg, #e0c3fc 0%, #8ec5fc 100%);
+      background-size: 200% 200%;
+      animation: gradientMove 15s ease infinite;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+    }
+
+    @keyframes gradientMove {
+      0% { background-position: 0% 50%; }
+      50% { background-position: 100% 50%; }
+      100% { background-position: 0% 50%; }
+    }
+
+    /* 2. 글래스모피즘 (유리 질감) 카드 */
+    .glass-card {
+      background: rgba(255, 255, 255, 0.45);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border: 1px solid rgba(255, 255, 255, 0.5);
+      border-radius: 28px;
+      padding: 3.5rem 4rem;
+      text-align: center;
+      box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.12);
+      max-width: 420px;
+      width: 85%;
+      transform: translateY(0);
+      transition: transform 0.4s ease, box-shadow 0.4s ease;
+    }
+
+    .glass-card:hover {
+      transform: translateY(-5px);
+      box-shadow: 0 12px 40px 0 rgba(31, 38, 135, 0.18);
+    }
+
+    /* 3. 타이포그래피 */
+    .logo-text {
+      font-size: 3.5rem;
+      font-weight: 800;
+      background: linear-gradient(to right, #4a90e2, #9013fe);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      margin-bottom: 0.5rem;
+      letter-spacing: -1px;
+    }
+
+    .subtitle {
+      font-size: 1.15rem;
+      color: #4a4a4a;
+      margin-bottom: 2.5rem;
+      font-weight: 500;
+      line-height: 1.6;
+      word-break: keep-all;
+    }
+
+    /* 4. 입체감 있는 시작 버튼 */
+    .start-button {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      border: none;
+      padding: 1rem 2.5rem;
+      font-size: 1.1rem;
+      font-weight: 600;
+      border-radius: 50px;
+      cursor: pointer;
+      box-shadow: 0 4px 15px rgba(118, 75, 162, 0.35);
+      transition: all 0.3s ease;
+      text-decoration: none;
+      display: inline-block;
+    }
+
+    .start-button:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 20px rgba(118, 75, 162, 0.5);
+      background: linear-gradient(135deg, #764ba2 0%, #667eea 100%);
+    }
+
+    .start-button:active {
+      transform: translateY(1px);
+      box-shadow: 0 2px 10px rgba(118, 75, 162, 0.3);
+    }
+  </style>
+</head>
+<body>
+  <div class="background">
+    <div class="glass-card">
+      <div class="logo-text">ION</div>
+      <div class="subtitle">의사소통 능력을 키우는<br>안전하고 따뜻한 연습 공간</div>
+      <a href="/session" class="start-button">ION 시작하기</a>
+    </div>
+  </div>
+</body>
+</html>

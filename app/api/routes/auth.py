@@ -47,7 +47,7 @@ def login_submit(
         )
 
     request.session["participant_code"] = participant.participant_code
-    return RedirectResponse(url="/session", status_code=303)
+    return RedirectResponse(url="/start", status_code=303)
 
 
 @router.get("/logout")

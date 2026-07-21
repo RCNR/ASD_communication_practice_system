@@ -204,6 +204,15 @@ def _render_session_item(
     )
 
 
+@router.get("/start")
+def start_screen(request: Request, db: Session = Depends(get_db)):
+    participant = _current_participant(request, db)
+    if not participant:
+        return RedirectResponse(url="/home", status_code=303)
+
+    return templates.TemplateResponse(request, "start.html", {})
+
+
 @router.get("/session")
 def session_screen(request: Request, db: Session = Depends(get_db)):
     participant = _current_participant(request, db)
