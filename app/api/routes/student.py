@@ -12,6 +12,7 @@ from app.core.database import get_db
 from app.models.ai_hint_log import AiHintLog
 from app.models.item import Item
 from app.models.participant import Participant
+from app.models.session import StudySession
 from app.models.trial_response import TrialResponse
 from app.services.hint_service import (
     CHECK_FAILED,
@@ -121,6 +122,7 @@ def _render_intervention_item(
                 "stage": "adequate",
                 "first_response": trial.first_response,
                 "missing": _missing_for(eval1),
+                "spelling_notice": bool(eval1 and eval1.spelling_issue),
             },
         )
 
@@ -148,6 +150,7 @@ def _render_intervention_item(
                 "first_response": trial.first_response,
                 "revised_response_1": trial.revised_response_1,
                 "missing": _missing_for(eval2),
+                "spelling_notice": bool(eval2 and eval2.spelling_issue),
             },
         )
 
@@ -160,6 +163,43 @@ def _render_intervention_item(
             "first_response": trial.first_response,
             "revised_response_1": trial.revised_response_1,
             "example_text": item.example_score_2,
+        },
+    )
+
+
+def _render_session_item(
+    request: Request,
+    db: Session,
+    trial: TrialResponse,
+    study_session: StudySession,
+    session_label: dict,
+    rewrite_notice: bool = False,
+    invalid_notice: bool = False,
+    spelling_notice: bool = False,
+    awaiting_advance: bool = False,
+):
+    """Renders session_item.html (baseline/maintenance) for the given trial.
+    awaiting_advance=True is used right after an accepted submission that
+    triggered spelling_notice: the trial is already completed, but instead
+    of redirecting straight to the next item, this re-renders the item that
+    was just answered so the notice appears attached to it, with a manual
+    "다음 문항" button instead of the answer form/timer."""
+    item = db.get(Item, trial.item_id)
+    return templates.TemplateResponse(
+        request,
+        "session_item.html",
+        {
+            "item": item,
+            "trial_id": trial.id,
+            "progress_current": trial.item_order,
+            "progress_total": study_session.planned_item_count,
+            "rewrite_notice": rewrite_notice,
+            "invalid_notice": invalid_notice,
+            "spelling_notice": spelling_notice,
+            "awaiting_advance": awaiting_advance,
+            "timer_seconds": RESPONSE_TIMER_SECONDS,
+            "timer_label": _timer_label(RESPONSE_TIMER_SECONDS),
+            **session_label,
         },
     )
 
@@ -219,21 +259,14 @@ def session_screen(request: Request, db: Session = Depends(get_db)):
             invalid_notice=request.query_params.get("invalid_notice") == "1",
         )
 
-    item = db.get(Item, trial.item_id)
-    return templates.TemplateResponse(
+    return _render_session_item(
         request,
-        "session_item.html",
-        {
-            "item": item,
-            "trial_id": trial.id,
-            "progress_current": trial.item_order,
-            "progress_total": study_session.planned_item_count,
-            "rewrite_notice": request.query_params.get("rewrite_notice") == "1",
-            "invalid_notice": request.query_params.get("invalid_notice") == "1",
-            "timer_seconds": RESPONSE_TIMER_SECONDS,
-            "timer_label": _timer_label(RESPONSE_TIMER_SECONDS),
-            **session_label,
-        },
+        db,
+        trial,
+        study_session,
+        session_label,
+        rewrite_notice=request.query_params.get("rewrite_notice") == "1",
+        invalid_notice=request.query_params.get("invalid_notice") == "1",
     )
 
 
@@ -309,7 +342,10 @@ def session_respond(
 
         # Baseline/maintenance never show a hint or ask for a revision - this
         # is a silent scoring-only pass so the score shows up in the admin
-        # participant-detail table, the same way intervention scores do.
+        # participant-detail table, the same way intervention scores do. The
+        # one exception is the spelling notice below, which is shown to the
+        # student without affecting the score.
+        spelling_notice = False
         if trial.first_attempt_response != response_text:
             # The participant's true independent first attempt (whatever's in
             # first_attempt_response) was rejected by the validity/safety/
@@ -334,7 +370,27 @@ def session_respond(
             db.commit()
         else:
             item = db.get(Item, trial.item_id)
-            evaluate_answer(db, trial, item, hint_level=1, student_response=response_text)
+            score, _, _, spelling_issue = evaluate_answer(
+                db, trial, item, hint_level=1, student_response=response_text
+            )
+            spelling_notice = score in (1, 2) and spelling_issue
+
+        if spelling_notice:
+            study_session = db.get(StudySession, trial.session_id)
+            session_label = {
+                "phase_label": PHASE_LABEL[study_session.phase],
+                "session_number": study_session.session_number,
+                "session_target": get_target_session_count(participant),
+            }
+            return _render_session_item(
+                request,
+                db,
+                trial,
+                study_session,
+                session_label,
+                spelling_notice=True,
+                awaiting_advance=True,
+            )
 
     return RedirectResponse(url="/session", status_code=303)
 
@@ -417,7 +473,7 @@ def session_revise(
         db.commit()
 
         item = db.get(Item, trial.item_id)
-        score, _, _ = evaluate_answer(
+        score, _, _, _ = evaluate_answer(
             db, trial, item, hint_level=2, student_response=response_text
         )
         if score == 0:

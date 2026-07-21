@@ -22,4 +22,5 @@ class AiHintLog(Base):
     contains_full_answer = Column(Boolean, nullable=False, default=False)
     safety_flag = Column(String, nullable=False, default="none")
     profanity_detected = Column(Boolean, nullable=False, default=False)
+    spelling_issue = Column(Boolean, nullable=False, default=False)  # 맞춤법/띄어쓰기 오류 여부 (점수에는 영향 없음)
     created_at = Column(DateTime(timezone=True), server_default=func.now())

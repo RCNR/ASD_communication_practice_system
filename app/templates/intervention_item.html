@@ -70,6 +70,11 @@
     {% else %}
     <p>잘했어요! 다음 문항으로 넘어가볼까요?</p>
     {% endif %}
+    {% if spelling_notice %}
+    <div class="warning-box">
+      <p style="margin-bottom: 0;">다음 문항에서는 맞춤법에 유의해서 답해봅시다.</p>
+    </div>
+    {% endif %}
     <form method="post" action="{{ action_prefix|default('/session') }}/finalize">
       <input type="hidden" name="trial_id" value="{{ trial_id }}" />
       <button type="submit">다음 문항</button>

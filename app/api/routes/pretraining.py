@@ -219,7 +219,7 @@ def pretraining_first_response(
                 return RedirectResponse(url=f"{ACTION_PREFIX}/item?rewrite_notice=1", status_code=303)
 
         state["first_response"] = response_text
-        score, feedback_message, missing = evaluate_answer(
+        score, feedback_message, missing, _ = evaluate_answer(
             db, None, item, hint_level=1, student_response=response_text
         )
         if score in (1, 2):
@@ -268,7 +268,7 @@ def pretraining_revise(
 
     if hint_level == 1:
         state["revised_response_1"] = response_text
-        score, _, missing = evaluate_answer(db, None, item, hint_level=2, student_response=response_text)
+        score, _, missing, _ = evaluate_answer(db, None, item, hint_level=2, student_response=response_text)
         if score == 0:
             state["stage"] = "example_wait_final_revision"
         else:

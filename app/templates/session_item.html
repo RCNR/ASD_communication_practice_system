@@ -33,6 +33,17 @@
     </div>
     {% endif %}
 
+    {% if spelling_notice %}
+    <div class="warning-box">
+      <p style="margin-bottom: 0;">다음 문항에서는 맞춤법에 유의해서 답해봅시다.</p>
+    </div>
+    {% endif %}
+
+    {% if awaiting_advance %}
+    <form method="get" action="/session">
+      <button type="submit">다음 문항</button>
+    </form>
+    {% else %}
     <p class="muted" data-timer-label>{{ timer_label }}</p>
     <p>친구에게 보낼 답장을 써보세요.</p>
     <form method="post" action="{{ action_prefix|default('/session') }}/respond" data-ai-loading data-timer>
@@ -40,6 +51,7 @@
       <textarea name="response_text" rows="4" required></textarea>
       <button type="submit">다음</button>
     </form>
+    {% endif %}
   </div>
 
   <div id="ai-loading-overlay" class="ai-loading-overlay" hidden>
