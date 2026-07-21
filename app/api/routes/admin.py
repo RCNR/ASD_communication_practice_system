@@ -8,6 +8,7 @@ from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
+from app.models.ai_hint_log import AiHintLog
 from app.models.item import Item
 from app.models.participant import Participant
 from app.models.phase_config import PhaseConfig
@@ -191,6 +192,33 @@ def admin_participant_edit_submit(
     participant.status = status
     if new_password:
         participant.password_hash = hashlib.sha256(new_password.encode()).hexdigest()
+    db.commit()
+
+    return RedirectResponse(url="/admin", status_code=303)
+
+
+@router.post("/participants/{participant_code}/delete")
+def admin_participant_delete(request: Request, participant_code: str, db: Session = Depends(get_db)):
+    redirect = _require_admin(request)
+    if redirect:
+        return redirect
+
+    participant = db.query(Participant).filter_by(participant_code=participant_code).first()
+    if not participant:
+        return RedirectResponse(url="/admin", status_code=303)
+
+    session_ids = [
+        row[0]
+        for row in db.query(StudySession.id).filter_by(participant_code=participant_code).all()
+    ]
+    trial_ids = [
+        row[0]
+        for row in db.query(TrialResponse.id).filter(TrialResponse.session_id.in_(session_ids)).all()
+    ]
+    db.query(AiHintLog).filter(AiHintLog.trial_id.in_(trial_ids)).delete(synchronize_session=False)
+    db.query(TrialResponse).filter(TrialResponse.session_id.in_(session_ids)).delete(synchronize_session=False)
+    db.query(StudySession).filter_by(participant_code=participant_code).delete(synchronize_session=False)
+    db.delete(participant)
     db.commit()
 
     return RedirectResponse(url="/admin", status_code=303)

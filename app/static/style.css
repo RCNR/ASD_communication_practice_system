@@ -345,6 +345,16 @@ button.secondary:hover {
   background: #f2f8f9;
 }
 
+button.danger {
+  background: #fff;
+  color: #b3432b;
+  border: 1.5px solid #b3432b;
+}
+
+button.danger:hover {
+  background: #fdece7;
+}
+
 .hint-box {
   background: var(--hint-bg);
   border-left: 4px solid var(--hint-border);
