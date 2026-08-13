@@ -36,7 +36,21 @@ from app.services.session_service import (
 router = APIRouter()
 templates = Jinja2Templates(directory="app/templates")
 
-PHASE_LABEL = {"baseline": "기초선", "intervention": "중재", "maintenance": "유지"}
+# 참여자에게 보여줄 단계 이름. 연구 용어(기초선/중재/유지)는 관리자 화면과
+# DB에만 남기고, 참여자 화면에서는 활동을 설명하는 말로 바꿔서 표시한다.
+PHASE_LABEL = {
+    "baseline": "혼자 연습해보기",
+    "intervention": "ION과 연습해보기",
+    "maintenance": "혼자 적용해보기",
+}
+
+# 사전교육 문항의 pretraining_phase(DB에는 연구 용어 그대로 저장)를 위와 같은
+# 참여자용 이름으로 바꿔주는 표시 전용 매핑.
+PRETRAINING_PHASE_LABEL = {
+    "기초선": PHASE_LABEL["baseline"],
+    "중재": PHASE_LABEL["intervention"],
+    "유지": PHASE_LABEL["maintenance"],
+}
 
 RESPONSE_TIMER_SECONDS = settings.RESPONSE_TIMER_SECONDS
 

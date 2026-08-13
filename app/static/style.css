@@ -53,6 +53,8 @@ h1 {
   font-size: 1.4rem;
   margin: 0 0 20px;
   color: var(--text);
+  word-break: keep-all;
+  overflow-wrap: break-word;
 }
 
 body.home-split {
@@ -232,6 +234,11 @@ p {
   font-size: 0.85rem;
   margin-bottom: 4px;
   letter-spacing: 0.02em;
+  /* 단계 이름이 길어 좁은 화면에서는 줄이 넘어간다. 어절 단위로만 끊어
+     자연스럽게 여러 줄로 흐르게 하고, 한 어절이 통째로 안 들어갈 때만
+     중간에서 끊는다. */
+  word-break: keep-all;
+  overflow-wrap: break-word;
 }
 
 .progress {
@@ -493,6 +500,9 @@ tr.flagged {
   background: #eef2f5;
   color: var(--text-muted);
   font-weight: 500;
+  max-width: 100%;
+  word-break: keep-all;
+  overflow-wrap: break-word;
 }
 
 .section-title {

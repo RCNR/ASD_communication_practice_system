@@ -5,7 +5,12 @@ from fastapi.responses import RedirectResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
 
-from app.api.routes.student import RESPONSE_TIMER_SECONDS, _current_participant, _timer_label
+from app.api.routes.student import (
+    PRETRAINING_PHASE_LABEL,
+    RESPONSE_TIMER_SECONDS,
+    _current_participant,
+    _timer_label,
+)
 from app.core.database import get_db
 from app.models.item import Item
 from app.services.hint_service import (
@@ -135,7 +140,7 @@ def pretraining_item(request: Request, db: Session = Depends(get_db)):
         "progress_current": state["index"] + 1,
         "progress_total": len(items),
         "action_prefix": ACTION_PREFIX,
-        "item_phase_label": item.pretraining_phase,
+        "item_phase_label": PRETRAINING_PHASE_LABEL.get(item.pretraining_phase, item.pretraining_phase),
         "rewrite_notice": request.query_params.get("rewrite_notice") == "1",
         "retry_notice": request.query_params.get("retry_notice") == "1",
         "invalid_notice": request.query_params.get("invalid_notice") == "1",
