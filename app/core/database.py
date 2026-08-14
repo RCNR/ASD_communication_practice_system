@@ -21,7 +21,6 @@ def init_db() -> None:
         ai_hint_log,
         item,
         participant,
-        phase_config,
         session,
         session_item,
         trial_response,

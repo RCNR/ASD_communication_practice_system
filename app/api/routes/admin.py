@@ -11,11 +11,15 @@ from app.core.database import get_db
 from app.models.ai_hint_log import AiHintLog
 from app.models.item import Item
 from app.models.participant import Participant
-from app.models.phase_config import PhaseConfig
 from app.models.session import StudySession
 from app.models.session_item import SessionItem
 from app.models.trial_response import TrialResponse
-from app.services.item_import_service import parse_item_file, upsert_items
+from app.services.item_import_service import (
+    PRACTICE_USE_TYPES,
+    SESSION_USE_TYPES,
+    parse_item_file,
+    upsert_items,
+)
 from app.services.session_service import PHASE_ORDER, get_latest_evaluation, get_latest_hint_message
 
 router = APIRouter(prefix="/admin")
@@ -345,14 +349,26 @@ def admin_scores(request: Request, participant_code: str = "", db: Session = Dep
     )
 
 
+def _items_of(db: Session, use_types: tuple[str, ...]) -> list[Item]:
+    """Item bank rows for one upload screen, listed the way they'll be shown to
+    participants (set by set, in-set order) rather than by item_id."""
+    return (
+        db.query(Item)
+        .filter(Item.use_type.in_(use_types))
+        .order_by(Item.use_type, Item.set_no, Item.set_order)
+        .all()
+    )
+
+
 @router.get("/items")
 def admin_items(request: Request, db: Session = Depends(get_db)):
     redirect = _require_admin(request)
     if redirect:
         return redirect
 
-    items = db.query(Item).filter(Item.use_type != "pretraining").order_by(Item.item_id).all()
-    return templates.TemplateResponse(request, "admin_items.html", {"items": items, "result": None})
+    return templates.TemplateResponse(
+        request, "admin_items.html", {"items": _items_of(db, SESSION_USE_TYPES), "result": None}
+    )
 
 
 @router.post("/items/upload")
@@ -364,13 +380,14 @@ async def admin_items_upload(request: Request, file: UploadFile, db: Session = D
     content = await file.read()
     try:
         rows = parse_item_file(file.filename, content)
-        upserted, errors = upsert_items(db, rows)
+        upserted, errors = upsert_items(db, rows, SESSION_USE_TYPES)
         result = {"upserted": upserted, "errors": errors}
     except Exception as exc:
         result = {"upserted": 0, "errors": [f"파일을 읽는 중 오류가 발생했습니다: {exc}"]}
 
-    items = db.query(Item).filter(Item.use_type != "pretraining").order_by(Item.item_id).all()
-    return templates.TemplateResponse(request, "admin_items.html", {"items": items, "result": result})
+    return templates.TemplateResponse(
+        request, "admin_items.html", {"items": _items_of(db, SESSION_USE_TYPES), "result": result}
+    )
 
 
 @router.post("/items/delete-all")
@@ -381,7 +398,7 @@ def admin_items_delete_all(request: Request, db: Session = Depends(get_db)):
 
     used_item_ids = {item_id for (item_id,) in db.query(SessionItem.item_id).distinct().all()}
 
-    query = db.query(Item).filter(Item.use_type != "pretraining")
+    query = db.query(Item).filter(Item.use_type.in_(SESSION_USE_TYPES))
     if used_item_ids:
         query = query.filter(Item.item_id.notin_(used_item_ids))
     to_delete = query.all()
@@ -394,9 +411,10 @@ def admin_items_delete_all(request: Request, db: Session = Depends(get_db)):
     if used_item_ids:
         message += f" (이미 회기에 배정된 {len(used_item_ids)}개 문항은 삭제하지 않았습니다.)"
 
-    items = db.query(Item).filter(Item.use_type != "pretraining").order_by(Item.item_id).all()
     return templates.TemplateResponse(
-        request, "admin_items.html", {"items": items, "result": None, "delete_message": message}
+        request,
+        "admin_items.html",
+        {"items": _items_of(db, SESSION_USE_TYPES), "result": None, "delete_message": message},
     )
 
 
@@ -406,8 +424,11 @@ def admin_pretraining_items(request: Request, db: Session = Depends(get_db)):
     if redirect:
         return redirect
 
-    items = db.query(Item).filter_by(use_type="pretraining").order_by(Item.item_id).all()
-    return templates.TemplateResponse(request, "admin_pretraining_items.html", {"items": items, "result": None})
+    return templates.TemplateResponse(
+        request,
+        "admin_pretraining_items.html",
+        {"items": _items_of(db, PRACTICE_USE_TYPES), "result": None},
+    )
 
 
 @router.post("/pretraining-items/upload")
@@ -419,23 +440,16 @@ async def admin_pretraining_items_upload(request: Request, file: UploadFile, db:
     content = await file.read()
     try:
         rows = parse_item_file(file.filename, content)
-        for row in rows:
-            row["use_type"] = "pretraining"
-            # item_id is the Item table's primary key, shared with regular
-            # items - prefixing here guarantees a pretraining upload can
-            # never collide with (and silently overwrite via db.merge) a
-            # regular item that happens to use the same item_id in its own
-            # source file.
-            original_id = str(row.get("item_id") or "").strip()
-            if original_id and not original_id.startswith("PRETRAIN_"):
-                row["item_id"] = f"PRETRAIN_{original_id}"
-        upserted, errors = upsert_items(db, rows)
+        upserted, errors = upsert_items(db, rows, PRACTICE_USE_TYPES)
         result = {"upserted": upserted, "errors": errors}
     except Exception as exc:
         result = {"upserted": 0, "errors": [f"파일을 읽는 중 오류가 발생했습니다: {exc}"]}
 
-    items = db.query(Item).filter_by(use_type="pretraining").order_by(Item.item_id).all()
-    return templates.TemplateResponse(request, "admin_pretraining_items.html", {"items": items, "result": result})
+    return templates.TemplateResponse(
+        request,
+        "admin_pretraining_items.html",
+        {"items": _items_of(db, PRACTICE_USE_TYPES), "result": result},
+    )
 
 
 @router.post("/pretraining-items/delete-all")
@@ -444,54 +458,20 @@ def admin_pretraining_items_delete_all(request: Request, db: Session = Depends(g
     if redirect:
         return redirect
 
-    to_delete = db.query(Item).filter_by(use_type="pretraining").all()
+    to_delete = db.query(Item).filter(Item.use_type.in_(PRACTICE_USE_TYPES)).all()
     deleted_count = len(to_delete)
     for item in to_delete:
         db.delete(item)
     db.commit()
 
-    items = db.query(Item).filter_by(use_type="pretraining").order_by(Item.item_id).all()
     return templates.TemplateResponse(
         request,
         "admin_pretraining_items.html",
-        {"items": items, "result": None, "delete_message": f"{deleted_count}개 문항을 삭제했습니다."},
+        {
+            "items": _items_of(db, PRACTICE_USE_TYPES),
+            "result": None,
+            "delete_message": f"{deleted_count}개 문항을 삭제했습니다.",
+        },
     )
 
 
-@router.get("/phase-config")
-def admin_phase_config_form(request: Request, db: Session = Depends(get_db)):
-    redirect = _require_admin(request)
-    if redirect:
-        return redirect
-
-    configs = {c.phase: c for c in db.query(PhaseConfig).all()}
-    return templates.TemplateResponse(request, "admin_phase_config.html", {"configs": configs})
-
-
-@router.post("/phase-config")
-def admin_phase_config_submit(
-    request: Request,
-    baseline_item_count: int = Form(...),
-    intervention_item_count: int = Form(...),
-    maintenance_item_count: int = Form(...),
-    db: Session = Depends(get_db),
-):
-    redirect = _require_admin(request)
-    if redirect:
-        return redirect
-
-    item_counts = {
-        "baseline": baseline_item_count,
-        "intervention": intervention_item_count,
-        "maintenance": maintenance_item_count,
-    }
-
-    for phase in PHASE_ORDER:
-        config = db.get(PhaseConfig, phase)
-        if config is None:
-            config = PhaseConfig(phase=phase)
-            db.add(config)
-        config.default_item_count = item_counts[phase]
-
-    db.commit()
-    return RedirectResponse(url="/admin", status_code=303)

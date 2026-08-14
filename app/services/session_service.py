@@ -1,15 +1,12 @@
 from __future__ import annotations
 
-import random
 from datetime import datetime, timezone
 
-from sqlalchemy import func
 from sqlalchemy.orm import Session as DbSession
 
 from app.models.ai_hint_log import AiHintLog
 from app.models.item import Item
 from app.models.participant import Participant
-from app.models.phase_config import PhaseConfig
 from app.models.session import StudySession
 from app.models.session_item import SessionItem
 from app.models.trial_response import TrialResponse
@@ -21,6 +18,12 @@ PHASE_USE_TYPE = {
 }
 
 PHASE_ORDER = ["baseline", "intervention", "maintenance"]
+
+# 기초선과 유지는 같은 assessment 문항은행을 쓰면서 회기 번호를 각각 1부터 세므로,
+# 유지 회기의 set_no는 기초선 구간(1~10) 다음인 11부터 시작하도록 밀어준다.
+# 참여자마다 기초선 길이가 다른 중다기초선 설계여도 이 오프셋은 고정이다 - 기초선을
+# 3회기만 한 참여자는 set_no 4~10을 쓰지 않고 건너뛴다.
+MAINTENANCE_SET_NO_OFFSET = 10
 
 
 def get_target_session_count(participant: Participant) -> int:
@@ -76,29 +79,35 @@ def get_next_session_number(db: DbSession, participant: Participant) -> int:
     )
 
 
-def _ensure_assignment_order(db: DbSession, use_type: str) -> None:
-    """Assigns a shared draw order to any approved items of this use_type
-    that don't have one yet. New items are shuffled in after the current
-    tail rather than reshuffling everything, so previously-assigned
-    positions (and therefore what session N means for existing items) never
-    move once set."""
-    unordered = (
+def get_set_no(phase: str, session_number: int) -> int:
+    """Which set_no in the item bank this phase's session_number maps to."""
+    if phase == "maintenance":
+        return session_number + MAINTENANCE_SET_NO_OFFSET
+    return session_number
+
+
+def get_set_items(db: DbSession, phase: str, session_number: int) -> list[Item]:
+    """The item bank rows for one session, in the order they must be shown.
+    No shuffling: set_order already alternates positive/negative so that
+    presenting it as-is keeps each session's sentiment balance.
+
+    Returns [] when the session number falls outside the phase's set_no range,
+    which the caller surfaces as "문항이 준비되지 않았어요". Without this bound a
+    participant given more than MAINTENANCE_SET_NO_OFFSET baseline sessions
+    would silently start drawing the maintenance sets."""
+    if phase == "baseline" and session_number > MAINTENANCE_SET_NO_OFFSET:
+        return []
+
+    return (
         db.query(Item)
-        .filter_by(use_type=use_type, status="approved")
-        .filter(Item.assignment_order.is_(None))
+        .filter_by(
+            use_type=PHASE_USE_TYPE[phase],
+            set_no=get_set_no(phase, session_number),
+            status="approved",
+        )
+        .order_by(Item.set_order)
         .all()
     )
-    if not unordered:
-        return
-
-    current_max = (
-        db.query(func.max(Item.assignment_order)).filter_by(use_type=use_type, status="approved").scalar()
-    ) or 0
-
-    random.shuffle(unordered)
-    for offset, item in enumerate(unordered, start=1):
-        item.assignment_order = current_max + offset
-    db.commit()
 
 
 def get_or_create_active_session(db: DbSession, participant: Participant) -> StudySession | None:
@@ -119,42 +128,28 @@ def get_or_create_active_session(db: DbSession, participant: Participant) -> Stu
         .count()
         + 1
     )
-    phase_config = db.get(PhaseConfig, phase)
-    planned_item_count = phase_config.default_item_count if phase_config else 6
+
+    set_items = get_set_items(db, phase, session_number)
+    if not set_items:
+        # The item bank has no set for this session number (xlsx not uploaded
+        # yet, or the participant was given more sessions than the bank
+        # covers). Creating an empty session would immediately "complete" it
+        # and advance the participant past a session they never took, so
+        # refuse instead and let the caller show a notice.
+        return None
 
     new_session = StudySession(
         participant_code=participant.participant_code,
         phase=phase,
         session_number=session_number,
-        planned_item_count=planned_item_count,
+        planned_item_count=len(set_items),
         status="in_progress",
         started_at=datetime.now(timezone.utc),
     )
     db.add(new_session)
     db.flush()
 
-    use_type = PHASE_USE_TYPE[phase]
-    _ensure_assignment_order(db, use_type)
-
-    ordered_pool = (
-        db.query(Item)
-        .filter_by(use_type=use_type, status="approved")
-        .order_by(Item.assignment_order)
-        .all()
-    )
-
-    # Session N always draws the same slice of the shared order, so every
-    # participant sees identical items for the same session_number (within
-    # this phase - baseline and maintenance each count from 1 independently
-    # even though they share the assessment pool). Once the pool is
-    # exhausted, later sessions wrap back to the start of the same order
-    # rather than reshuffling, so the guarantee holds indefinitely.
-    n = len(ordered_pool)
-    count = min(planned_item_count, n)
-    start = ((session_number - 1) * planned_item_count) % n if n else 0
-    candidate_items = [ordered_pool[(start + i) % n] for i in range(count)]
-
-    for order, item in enumerate(candidate_items, start=1):
+    for order, item in enumerate(set_items, start=1):
         db.add(SessionItem(session_id=new_session.id, item_id=item.item_id, item_order=order))
         db.add(
             TrialResponse(

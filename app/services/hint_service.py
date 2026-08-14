@@ -15,37 +15,22 @@ client = OpenAI(api_key=settings.OPENAI_API_KEY)
 SYSTEM_PROMPT = """너는 자폐성장애 중·고등학생의 학교생활 대화 연습을 돕는 채점 도우미다.
 
 너의 역할은 학생의 답장에 아래 두 요소가 있는지를 각각 true/false로 판단하는 것이다. 점수 자체는 시스템이
-이 두 값으로부터 계산하므로 너는 점수를 직접 매기지 않는다.
+이 두 값으로부터 계산하므로 너는 점수를 직접 매기지 않는다. 힌트를 쓰는 것도 네 역할이 아니다.
 
-- 인정(acknowledge): 친구가 한 말에 대한 감정적 반응. sentiment가 positive면 축하·기쁨 표현, negative면
+- 인정(acknowledge): 친구가 드러낸 정서를 알아주는 말. sentiment가 positive면 축하·기쁨 표현, negative면
   위로·공감 표현이 인정에 해당한다.
-- 이어가기(continue): 되묻거나 제안하는 등 대화를 계속 이어가려는 시도.
+- 이어가기(continue): 대화의 초점을 친구에게 유지한 채 덧붙이는 말. 관련된 질문, 위로·지지, 도움 제안,
+  자기 경험 나누기가 모두 여기에 해당한다.
 
 판단 참고:
-- example_score_2는 인정+이어가기가 둘 다 있는 예시, example_score_1_ack는 인정만 있는 예시,
-  example_score_1_con은 이어가기만 있는 예시, example_score_0은 둘 다 없는 예시다. 학생 답이 예시와
-  똑같지 않아도 같은 전략을 쓰고 있으면 해당 요소가 있다고 본다.
 - 판단이 애매하면 관대하게 있다고(true) 본다. 이 프로그램의 목적은 정답을 가려내는 것이 아니라 학생이
   자신감을 갖고 연습하는 것이다.
-- 맞춤법이나 띄어쓰기에 경미한 오류가 있어도 의미 전달에 지장이 없으면 감점하지 않는다. 채점은 오직
-  내용(인정, 이어가기)만 기준으로 한다.
-- acknowledge와 continue가 둘 다 false인 경우(상황과 무관하거나 "몰라"처럼 주제를 벗어난 답 포함)에만
-  feedback_message에 전략 힌트를 담는다. 그 외에는 feedback_message를 빈 문자열로 둔다.
+- 짧은 반응이라도 두 요소가 담겨 있으면 있다고 본다.
+- 맞춤법이나 띄어쓰기에 오류가 있어도 감점하지 않는다. 채점은 오직 내용(인정, 이어가기)만 기준으로 한다.
 - 답장에 욕설이나 비속어가 있으면 safety_flag를 "inappropriate"로 설정한다 (그 외에는 "none").
 - 맞춤법이나 띄어쓰기에 오류가 있으면 spelling_issue를 true로 설정한다 (없으면 false). 이 값은 점수에
   전혀 영향을 주지 않는다 - 위에서 말했듯 맞춤법/띄어쓰기 오류는 감점 사유가 아니며, 오직 학생에게 다음
   문항에서 맞춤법에 신경 써 보라는 별도 안내를 보여주기 위한 값이다.
-
-반드시 지켜야 할 규칙:
-1. 학생을 대신해 완성된 답장을 작성하지 않는다. 힌트에 정답 문장 전체는 물론, 정답에만 등장하는 구체적인
-   단어·표현도 넣지 않는다.
-2. 힌트는 "무엇을 해야 하는지" 전략만 짧게 알려준다. 예: "친구가 말한 일에 대해 더 알고 싶은 점을 물어보세요."
-   또는 "친구가 지금 어떤 마음일지 표현해보세요." 처럼, 내용이 아니라 행동 지침 형태로 작성한다.
-3. 새로운 상황을 만들지 않는다.
-4. 상담자, 치료자, 진단자 역할을 하지 않는다.
-5. 개인정보를 묻지 않는다.
-6. 위험한 조언을 하지 않는다.
-7. 힌트는 1~2문장 이내의 쉬운 한국어로만 작성한다.
 
 반드시 JSON 형식으로만 응답한다."""
 
@@ -54,28 +39,70 @@ RESPONSE_JSON_SCHEMA = {
     "properties": {
         "acknowledge": {"type": "boolean"},
         "continue": {"type": "boolean"},
-        "feedback_message": {"type": "string"},
-        "contains_full_answer": {"type": "boolean"},
         "safety_flag": {
             "type": "string",
             "enum": ["none", "privacy", "self_harm", "violence", "abuse", "inappropriate", "other"],
         },
         "spelling_issue": {"type": "boolean"},
     },
-    "required": [
-        "acknowledge",
-        "continue",
-        "feedback_message",
-        "contains_full_answer",
-        "safety_flag",
-        "spelling_issue",
-    ],
+    "required": ["acknowledge", "continue", "safety_flag", "spelling_issue"],
+    "additionalProperties": False,
+}
+
+HINT_SYSTEM_PROMPT = """너는 자폐성장애 중·고등학생의 학교생활 대화 연습을 돕는 힌트 도우미다.
+
+학생이 친구의 메시지에 답장을 썼지만 "인정"과 "이어가기"가 둘 다 빠졌다. 학생이 답장을 다시 써 볼 수 있도록
+힌트 한 개를 작성하는 것이 네 역할이다. 채점은 네 역할이 아니다.
+
+- 인정: 친구가 드러낸 정서를 알아주는 말
+- 이어가기: 대화의 초점을 친구에게 유지한 채 덧붙이는 말
+
+입력으로 주어지는 hint_ack는 이 문항에서 알아줘야 할 정서, hint_con은 이어갈 만한 방향이다. 이 두 재료를
+학생이 이해할 수 있는 말로 풀어서 힌트를 만든다.
+
+반드시 지켜야 할 규칙:
+1. 학생을 대신해 완성된 답장을 작성하지 않는다. 정답 문장 전체는 물론, 답장에 그대로 쓸 수 있는 구체적인
+   문구도 넣지 않는다.
+2. "무엇을 해야 하는지" 전략만 알려준다. 예: "친구가 지금 어떤 마음일지 알아주는 말을 먼저 쓰고, 그 일에
+   대해 궁금한 점을 물어보세요." 처럼 내용이 아니라 행동 지침 형태로 작성한다.
+3. 새로운 상황을 만들지 않는다.
+4. 상담자, 치료자, 진단자 역할을 하지 않는다.
+5. 개인정보를 묻지 않는다.
+6. 위험한 조언을 하지 않는다.
+7. 1~2문장 이내의 쉬운 한국어로만 작성한다.
+
+반드시 JSON 형식으로만 응답한다."""
+
+HINT_JSON_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "hint": {"type": "string"},
+        "contains_full_answer": {"type": "boolean"},
+    },
+    "required": ["hint", "contains_full_answer"],
     "additionalProperties": False,
 }
 
 MAX_MESSAGE_LENGTH = 120
 PERSONAL_INFO_KEYWORDS = ["이름이 뭐", "몇 살", "나이가", "학교가 어디", "전화번호", "사는 곳", "주소가"]
 PROFANITY_MESSAGE = "적합하지 않은 표현입니다. 다른 방식으로 대답해 볼까요?"
+
+# 1점(둘 중 하나만 충족)일 때 보여주는 고정 제안 메시지. AI가 쓰지 않는다.
+# 촉구가 아니라 안내라서, 출력만 하고 그 문항에서 답을 다시 받지는 않는다.
+SUGGESTION_MESSAGES = {
+    ("이어가기", "negative"): "친구 마음을 잘 알아줬어요. 지금 답도 좋지만, 다음에는 힘이 되는 말을 한마디 더 붙여 볼까요?",
+    ("이어가기", "positive"): "친구 마음을 잘 알아줬어요. 지금 답도 좋지만, 다음에는 궁금한 걸 하나 물어볼까요?",
+    ("인정", "negative"): "대화를 이어가는 말을 잘 썼어요. 지금 답도 좋지만, 다음에는 친구가 어떤 마음일지 알아주는 말을 먼저 넣어 볼까요?",
+    ("인정", "positive"): "대화를 이어가는 말을 잘 썼어요. 지금 답도 좋지만, 다음에는 같이 기뻐해 주는 말을 먼저 넣어 볼까요?",
+}
+
+
+def get_suggestion_message(missing: str | None, sentiment: str | None) -> str | None:
+    """The fixed 1-point suggestion for this (missing element, sentiment)
+    pair. None for 0/2-point responses, which have nothing to suggest."""
+    if missing is None:
+        return None
+    return SUGGESTION_MESSAGES.get((missing, sentiment or "positive"))
 
 CONTENT_SAFETY_SYSTEM_PROMPT = """너는 자폐성장애 학생이 쓴 대화 연습 답장에 안전 문제가 있는지만 판단하는
 필터다. 채점이나 힌트 작성은 네 역할이 아니다.
@@ -275,54 +302,100 @@ def _derive_missing(acknowledge: bool, continue_flag: bool) -> str | None:
     return None
 
 
-def _validate_parsed(parsed: dict, item: Item) -> bool:
+def _validate_parsed(parsed: dict) -> bool:
+    """Sanity-checks the scoring call's response. Only the two booleans plus
+    the two informational flags matter here - hint text is validated
+    separately in _validate_hint."""
+    if parsed.get("safety_flag") not in ("none", "inappropriate"):
+        return False
+
+    if not isinstance(parsed.get("acknowledge"), bool) or not isinstance(parsed.get("continue"), bool):
+        return False
+
+    return isinstance(parsed.get("spelling_issue"), bool)
+
+
+def _validate_hint(parsed: dict, item: Item) -> bool:
+    """Rejects a generated hint that leaks the answer, runs long, or asks for
+    personal information. A rejected hint falls back to item.hint_fallback."""
     if parsed.get("contains_full_answer") is not False:
         return False
 
-    safety_flag = parsed.get("safety_flag")
-    if safety_flag not in ("none", "inappropriate"):
+    hint = parsed.get("hint", "")
+    if not hint or len(hint) > MAX_MESSAGE_LENGTH:
         return False
-
-    acknowledge = parsed.get("acknowledge")
-    continue_flag = parsed.get("continue")
-    if not isinstance(acknowledge, bool) or not isinstance(continue_flag, bool):
+    if item.example_score_2 and item.example_score_2 in hint:
         return False
+    return not any(keyword in hint for keyword in PERSONAL_INFO_KEYWORDS)
 
-    if not isinstance(parsed.get("spelling_issue"), bool):
-        return False
 
-    # inappropriate (profanity) always scores 0 with a fixed message (set in
-    # evaluate_answer), so the AI's own feedback_message doesn't need to pass
-    # the strategic-hint validation below.
-    if safety_flag == "none" and _derive_score(acknowledge, continue_flag) == 0:
-        message = parsed.get("feedback_message", "")
-        if not message or len(message) > MAX_MESSAGE_LENGTH:
-            return False
-        if item.example_score_2 and item.example_score_2 in message:
-            return False
-        if any(keyword in message for keyword in PERSONAL_INFO_KEYWORDS):
-            return False
+def generate_hint(item: Item, student_response: str) -> tuple[str | None, bool]:
+    """Second-step hint for a 0-point response. Returns (hint, fallback_used).
 
-    return True
+    Deliberately a separate call from evaluate_answer: the scoring prompt must
+    not see hint_ack/hint_con (they'd bias the judgment toward one "correct"
+    strategy) and the hint prompt must not see the example_* columns (the hint
+    would then leak the step-3 answer). Neither prompt gets both.
+
+    Falls back to item.hint_fallback on API/validation failure so the student
+    still sees something in the hint slot."""
+    payload = {
+        "item_text": item.item_text,
+        "student_response": student_response,
+        "sentiment": item.sentiment,
+        "hint_ack": item.hint_ack,
+        "hint_con": item.hint_con,
+    }
+
+    try:
+        response = client.chat.completions.create(
+            model=settings.OPENAI_MODEL,
+            messages=[
+                {"role": "system", "content": HINT_SYSTEM_PROMPT},
+                {"role": "user", "content": json.dumps(payload, ensure_ascii=False)},
+            ],
+            response_format={
+                "type": "json_schema",
+                "json_schema": {"name": "hint_response", "schema": HINT_JSON_SCHEMA, "strict": True},
+            },
+        )
+        parsed = json.loads(response.choices[0].message.content)
+        if _validate_hint(parsed, item):
+            return parsed["hint"], False
+    except Exception:
+        pass
+
+    return item.hint_fallback, True
 
 
 def evaluate_answer(
-    db: DbSession, trial: TrialResponse | None, item: Item, hint_level: int, student_response: str
+    db: DbSession,
+    trial: TrialResponse | None,
+    item: Item,
+    hint_level: int,
+    student_response: str,
+    with_hint: bool = False,
 ) -> tuple[int, str | None, str | None, bool]:
     """Calls the AI to judge acknowledge/continue for student_response and
-    derives a 0/1/2 score from them. Returns (score, feedback_message,
-    missing, spelling_issue). feedback_message is only meaningful when score
-    is 0. missing is "인정"/"이어가기" when score is 1, else None.
+    derives a 0/1/2 score from them. Returns (score, hint_message, missing,
+    spelling_issue). missing is "인정"/"이어가기" when score is 1, else None.
     spelling_issue is whether the AI flagged a spelling/spacing error - it
     never affects score. Logs the call to AiHintLog, unless trial is None
     (used for ephemeral, non-persisted practice sessions - e.g. pretraining -
     where there is no real trial row to attach the log to).
 
+    hint_message is only produced when with_hint is True and the score is 0,
+    via a second AI call (generate_hint). Callers that never show a hint -
+    baseline/maintenance, and the intervention step that already had its one
+    hint - leave with_hint False so no hint call is made at all.
+
+    The scoring prompt deliberately receives neither the example_* columns nor
+    the hint_* columns: examples would turn the judgment into "is this similar
+    to the sample answer", which misses correct answers worded differently.
+
     On API/validation failure, defaults to acknowledge=continue=False (score
     0) - fails toward giving the student more help rather than silently
     skipping a check."""
-    fallback_template = item.hint_template
-
     payload = {
         "session_ref": trial.id if trial is not None else "pretraining",
         "item_id": item.item_id,
@@ -330,26 +403,12 @@ def evaluate_answer(
         "item_text": item.item_text,
         "student_response": student_response,
         "hint_level": hint_level,
-        "example_score_2": item.example_score_2,
-        "example_score_1_ack": item.example_score_1_ack,
-        "example_score_1_con": item.example_score_1_con,
-        "example_score_0": item.example_score_0,
-        "reference_hint": fallback_template,
-        "forbidden": [
-            "완성 답장 제공 금지",
-            "정답에만 등장하는 단어/표현 제공 금지",
-            "새로운 상황 생성 금지",
-            "상담자/치료자/진단자 역할 금지",
-            "개인정보 질문 금지",
-        ],
     }
 
     raw_content = None
     acknowledge = False
     continue_flag = False
-    feedback_message = fallback_template
     fallback_used = True
-    contains_full_answer = False
     safety_flag = "none"
     profanity_detected = False
     spelling_issue = False
@@ -373,31 +432,30 @@ def evaluate_answer(
         raw_content = response.choices[0].message.content
         parsed = json.loads(raw_content)
 
-        if _validate_parsed(parsed, item):
+        if _validate_parsed(parsed):
             safety_flag = parsed["safety_flag"]
             profanity_detected = safety_flag == "inappropriate"
             fallback_used = False
-            contains_full_answer = parsed["contains_full_answer"]
             spelling_issue = parsed["spelling_issue"]
 
-            if profanity_detected:
+            if not profanity_detected:
                 # Profanity always scores 0 (counted normally) with a fixed
                 # message, regardless of what the AI judged for
-                # acknowledge/continue.
-                acknowledge = False
-                continue_flag = False
-                feedback_message = PROFANITY_MESSAGE
-            else:
+                # acknowledge/continue - so its booleans are left at False.
                 acknowledge = parsed["acknowledge"]
                 continue_flag = parsed["continue"]
-                feedback_message = (
-                    parsed["feedback_message"] if _derive_score(acknowledge, continue_flag) == 0 else None
-                )
     except Exception:
         pass
 
     score = _derive_score(acknowledge, continue_flag)
     missing = _derive_missing(acknowledge, continue_flag) if score == 1 else None
+
+    hint_message = None
+    hint_fallback_used = False
+    if profanity_detected:
+        hint_message = PROFANITY_MESSAGE
+    elif with_hint and score == 0:
+        hint_message, hint_fallback_used = generate_hint(item, student_response)
 
     if trial is not None:
         db.add(
@@ -407,13 +465,13 @@ def evaluate_answer(
                 prompt_payload=json.dumps(payload, ensure_ascii=False),
                 model_name=settings.OPENAI_MODEL,
                 api_response_raw=raw_content,
-                hint_message=feedback_message,
+                hint_message=hint_message,
                 score_level=score,
                 acknowledge=acknowledge,
                 continue_flag=continue_flag,
-                fallback_used=fallback_used,
+                fallback_used=fallback_used or hint_fallback_used,
                 contains_scoring=True,  # this call's whole purpose is a correctness judgment
-                contains_full_answer=contains_full_answer,
+                contains_full_answer=False,
                 safety_flag=safety_flag,
                 profanity_detected=profanity_detected,
                 spelling_issue=spelling_issue,
@@ -421,4 +479,4 @@ def evaluate_answer(
         )
         db.commit()
 
-    return score, feedback_message, missing, spelling_issue
+    return score, hint_message, missing, spelling_issue

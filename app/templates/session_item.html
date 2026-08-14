@@ -40,7 +40,7 @@
     {% endif %}
 
     {% if awaiting_advance %}
-    <form method="get" action="/session">
+    <form method="{{ advance_method }}" action="{{ advance_action }}">
       <button type="submit">다음 문항</button>
     </form>
     {% else %}

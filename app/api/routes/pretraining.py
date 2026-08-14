@@ -6,7 +6,7 @@ from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
 
 from app.api.routes.student import (
-    PRETRAINING_PHASE_LABEL,
+    PRACTICE_USE_TYPE_LABEL,
     RESPONSE_TIMER_SECONDS,
     _current_participant,
     _timer_label,
@@ -19,32 +19,28 @@ from app.services.hint_service import (
     check_profanity,
     check_response_validity,
     evaluate_answer,
+    get_suggestion_message,
 )
+from app.services.item_import_service import PRACTICE_USE_TYPES
 
 router = APIRouter(prefix="/pretraining")
 templates = Jinja2Templates(directory="app/templates")
 
 ACTION_PREFIX = "/pretraining"
 
-# Desired walkthrough order. item_id alone doesn't track this (pretraining
-# item ids are copied from whatever the source xlsx used, e.g. Q018 for a
-# baseline-style item and Q144 for a maintenance-style one), so phase has to
-# be sorted on explicitly. Items with an unrecognized/blank pretraining_phase
-# sort last rather than silently reshuffling the rest.
-PHASE_ORDER_RANK = {"기초선": 0, "중재": 1, "유지": 2}
+# Walkthrough order: the single-step practice items first, then the ones that
+# walk through the full hint/example flow.
+USE_TYPE_RANK = {"practice_assessment": 0, "practice_intervention": 1}
 
 
 def _pretraining_items(db: Session) -> list[Item]:
     items = (
         db.query(Item)
-        .filter_by(use_type="pretraining", status="approved")
-        .order_by(Item.item_id)
+        .filter(Item.use_type.in_(PRACTICE_USE_TYPES), Item.status == "approved")
+        .order_by(Item.set_no, Item.set_order)
         .all()
     )
-    return sorted(
-        items,
-        key=lambda item: (PHASE_ORDER_RANK.get(item.pretraining_phase, len(PHASE_ORDER_RANK)), item.item_id),
-    )
+    return sorted(items, key=lambda item: USE_TYPE_RANK.get(item.use_type, len(USE_TYPE_RANK)))
 
 
 def _init_state() -> dict:
@@ -61,7 +57,7 @@ def _init_state() -> dict:
         "stage": "first",
         "first_response": None,
         "revised_response_1": None,
-        "missing": None,
+        "suggestion_message": None,
         "feedback_message": None,
     }
 
@@ -71,7 +67,7 @@ def _advance_to_next_item(state: dict) -> None:
     state["stage"] = "first"
     state["first_response"] = None
     state["revised_response_1"] = None
-    state["missing"] = None
+    state["suggestion_message"] = None
     state["feedback_message"] = None
 
 
@@ -140,7 +136,7 @@ def pretraining_item(request: Request, db: Session = Depends(get_db)):
         "progress_current": state["index"] + 1,
         "progress_total": len(items),
         "action_prefix": ACTION_PREFIX,
-        "item_phase_label": PRETRAINING_PHASE_LABEL.get(item.pretraining_phase, item.pretraining_phase),
+        "item_phase_label": PRACTICE_USE_TYPE_LABEL.get(item.use_type),
         "rewrite_notice": request.query_params.get("rewrite_notice") == "1",
         "retry_notice": request.query_params.get("retry_notice") == "1",
         "invalid_notice": request.query_params.get("invalid_notice") == "1",
@@ -149,8 +145,21 @@ def pretraining_item(request: Request, db: Session = Depends(get_db)):
         **session_label,
     }
 
-    if not item.hint_template:
-        return templates.TemplateResponse(request, "session_item.html", base_context)
+    if item.use_type == "practice_assessment":
+        # Single-step, same as a baseline/maintenance session item: answer once
+        # and move on. The one thing that pauses the flow is the spelling
+        # notice, which is shown attached to the item it refers to.
+        return templates.TemplateResponse(
+            request,
+            "session_item.html",
+            {
+                **base_context,
+                "spelling_notice": state["stage"] == "spelling_notice",
+                "awaiting_advance": state["stage"] == "spelling_notice",
+                "advance_method": "post",
+                "advance_action": f"{ACTION_PREFIX}/finalize",
+            },
+        )
 
     stage = state["stage"]
     if stage == "first":
@@ -165,7 +174,7 @@ def pretraining_item(request: Request, db: Session = Depends(get_db)):
                 "stage": "adequate",
                 "first_response": state["first_response"],
                 "revised_response_1": state["revised_response_1"],
-                "missing": state["missing"],
+                "suggestion_message": state["suggestion_message"],
             },
         )
 
@@ -210,7 +219,7 @@ def pretraining_first_response(
         return RedirectResponse(url=ACTION_PREFIX, status_code=303)
 
     item = _current_item(db, state)
-    if item is not None and item.hint_template and state["stage"] == "first":
+    if item is not None and item.use_type == "practice_intervention" and state["stage"] == "first":
         if timed_out != "1":
             if not check_response_validity(response_text):
                 return RedirectResponse(url=f"{ACTION_PREFIX}/item?invalid_notice=1", status_code=303)
@@ -225,11 +234,11 @@ def pretraining_first_response(
 
         state["first_response"] = response_text
         score, feedback_message, missing, _ = evaluate_answer(
-            db, None, item, hint_level=1, student_response=response_text
+            db, None, item, hint_level=1, student_response=response_text, with_hint=True
         )
         if score in (1, 2):
             state["stage"] = "adequate"
-            state["missing"] = missing
+            state["suggestion_message"] = get_suggestion_message(missing, item.sentiment)
         else:
             state["stage"] = "hint_wait_revision"
             state["feedback_message"] = feedback_message
@@ -255,7 +264,7 @@ def pretraining_revise(
         return RedirectResponse(url=ACTION_PREFIX, status_code=303)
 
     item = _current_item(db, state)
-    if item is None or not item.hint_template:
+    if item is None or item.use_type != "practice_intervention":
         return RedirectResponse(url=f"{ACTION_PREFIX}/item", status_code=303)
 
     if timed_out != "1":
@@ -278,7 +287,7 @@ def pretraining_revise(
             state["stage"] = "example_wait_final_revision"
         else:
             state["stage"] = "adequate"
-            state["missing"] = missing
+            state["suggestion_message"] = get_suggestion_message(missing, item.sentiment)
     elif hint_level == 2:
         _advance_to_next_item(state)
 
@@ -296,7 +305,9 @@ def pretraining_finalize(request: Request, db: Session = Depends(get_db)):
     if state is None:
         return RedirectResponse(url=ACTION_PREFIX, status_code=303)
 
-    if state["index"] < len(_pretraining_items(db)) and state["stage"] == "adequate":
+    # "adequate" is the intervention flow's pass state; "spelling_notice" is
+    # the practice_assessment flow's one pause. Both advance on the same button.
+    if state["index"] < len(_pretraining_items(db)) and state["stage"] in ("adequate", "spelling_notice"):
         _advance_to_next_item(state)
 
     request.session["pretraining"] = state
@@ -319,7 +330,7 @@ def pretraining_respond(
         return RedirectResponse(url=ACTION_PREFIX, status_code=303)
 
     item = _current_item(db, state)
-    if item is not None and not item.hint_template:
+    if item is not None and item.use_type == "practice_assessment" and state["stage"] == "first":
         if timed_out != "1":
             if not check_response_validity(response_text):
                 return RedirectResponse(url=f"{ACTION_PREFIX}/item?invalid_notice=1", status_code=303)
@@ -331,7 +342,15 @@ def pretraining_respond(
             if check_profanity(response_text):
                 return RedirectResponse(url=f"{ACTION_PREFIX}/item?rewrite_notice=1", status_code=303)
 
-        _advance_to_next_item(state)
+        # Scored silently, exactly like a baseline/maintenance session item:
+        # the participant sees no feedback, only the spelling notice.
+        score, _, _, spelling_issue = evaluate_answer(
+            db, None, item, hint_level=1, student_response=response_text
+        )
+        if score in (1, 2) and spelling_issue:
+            state["stage"] = "spelling_notice"
+        else:
+            _advance_to_next_item(state)
 
     request.session["pretraining"] = state
     return RedirectResponse(url=f"{ACTION_PREFIX}/item", status_code=303)

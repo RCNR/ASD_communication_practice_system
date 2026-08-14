@@ -13,6 +13,11 @@
   <div class="card">
     <p class="session-progress">{{ phase_label }} · {{ session_number }}/{{ session_target }}회기</p>
     <h1>{{ phase_label }} {{ session_number }}회차를 시작할 준비가 되셨나요?</h1>
+    {% if no_items_notice %}
+    <div class="warning-box">
+      <p style="margin-bottom: 0;">아직 이번 회차의 문항이 준비되지 않았어요. 선생님께 알려주세요.</p>
+    </div>
+    {% endif %}
     <form method="post" action="/session/start" style="text-align: center;">
       <button type="submit">{{ session_number }}회차 시작하기</button>
     </form>

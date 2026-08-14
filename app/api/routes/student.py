@@ -20,6 +20,7 @@ from app.services.hint_service import (
     check_profanity,
     check_response_validity,
     evaluate_answer,
+    get_suggestion_message,
 )
 from app.services.session_service import (
     advance_phase_if_needed,
@@ -44,12 +45,10 @@ PHASE_LABEL = {
     "maintenance": "혼자 적용해보기",
 }
 
-# 사전교육 문항의 pretraining_phase(DB에는 연구 용어 그대로 저장)를 위와 같은
-# 참여자용 이름으로 바꿔주는 표시 전용 매핑.
-PRETRAINING_PHASE_LABEL = {
-    "기초선": PHASE_LABEL["baseline"],
-    "중재": PHASE_LABEL["intervention"],
-    "유지": PHASE_LABEL["maintenance"],
+# 사전교육 문항의 use_type을 위와 같은 참여자용 이름으로 바꿔주는 표시 전용 매핑.
+PRACTICE_USE_TYPE_LABEL = {
+    "practice_assessment": PHASE_LABEL["baseline"],
+    "practice_intervention": PHASE_LABEL["intervention"],
 }
 
 RESPONSE_TIMER_SECONDS = settings.RESPONSE_TIMER_SECONDS
@@ -77,16 +76,19 @@ def _content_safety_redirect(response_text: str) -> str | None:
     return None
 
 
-def _missing_for(eval_log) -> str | None:
-    """Which element ("인정" or "이어가기") a 1-point response is missing, for
-    picking the fixed suggestion message. None for 0/2-point evaluations."""
+def _suggestion_for(eval_log, item: Item) -> str | None:
+    """The fixed 1-point suggestion message for this evaluation, chosen by the
+    missing element ("인정"/"이어가기") and the item's sentiment. None for
+    0/2-point evaluations, which have no suggestion."""
     if eval_log is None or eval_log.score_level != 1:
         return None
     if eval_log.acknowledge and not eval_log.continue_flag:
-        return "이어가기"
-    if eval_log.continue_flag and not eval_log.acknowledge:
-        return "인정"
-    return None
+        missing = "이어가기"
+    elif eval_log.continue_flag and not eval_log.acknowledge:
+        missing = "인정"
+    else:
+        return None
+    return get_suggestion_message(missing, item.sentiment)
 
 
 def _current_participant(request: Request, db: Session) -> Participant | None:
@@ -135,7 +137,7 @@ def _render_intervention_item(
                 **base_context,
                 "stage": "adequate",
                 "first_response": trial.first_response,
-                "missing": _missing_for(eval1),
+                "suggestion_message": _suggestion_for(eval1, item),
                 "spelling_notice": bool(eval1 and eval1.spelling_issue),
             },
         )
@@ -163,7 +165,7 @@ def _render_intervention_item(
                 "stage": "adequate",
                 "first_response": trial.first_response,
                 "revised_response_1": trial.revised_response_1,
-                "missing": _missing_for(eval2),
+                "suggestion_message": _suggestion_for(eval2, item),
                 "spelling_notice": bool(eval2 and eval2.spelling_issue),
             },
         )
@@ -211,6 +213,10 @@ def _render_session_item(
             "invalid_notice": invalid_notice,
             "spelling_notice": spelling_notice,
             "awaiting_advance": awaiting_advance,
+            # The trial is already completed at this point, so simply
+            # re-requesting /session picks up the next one.
+            "advance_method": "get",
+            "advance_action": "/session",
             "timer_seconds": RESPONSE_TIMER_SECONDS,
             "timer_label": _timer_label(RESPONSE_TIMER_SECONDS),
             **session_label,
@@ -313,6 +319,7 @@ def session_gate_screen(request: Request, db: Session = Depends(get_db)):
             "phase_label": PHASE_LABEL[participant.current_phase],
             "session_number": get_next_session_number(db, participant),
             "session_target": target,
+            "no_items_notice": request.query_params.get("no_items") == "1",
         },
     )
 
@@ -323,7 +330,11 @@ def session_start(request: Request, db: Session = Depends(get_db)):
     if not participant:
         return RedirectResponse(url="/home", status_code=303)
 
-    get_or_create_active_session(db, participant)
+    if get_or_create_active_session(db, participant) is None:
+        # The item bank has no set for this session number - bounce back to
+        # the gate with a notice rather than to /session, which would just
+        # send the participant here again with no explanation.
+        return RedirectResponse(url="/session/gate?no_items=1", status_code=303)
 
     return RedirectResponse(url="/session", status_code=303)
 
@@ -453,7 +464,9 @@ def session_first_response(
         db.commit()
 
         item = db.get(Item, trial.item_id)
-        evaluate_answer(db, trial, item, hint_level=1, student_response=response_text)
+        # with_hint: a 0 here is the one point in the flow where the student
+        # is shown a hint and asked to revise.
+        evaluate_answer(db, trial, item, hint_level=1, student_response=response_text, with_hint=True)
 
     return RedirectResponse(url="/session", status_code=303)
 
