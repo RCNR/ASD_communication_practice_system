@@ -25,6 +25,14 @@ PHASE_ORDER = ["baseline", "intervention", "maintenance"]
 # 3회기만 한 참여자는 set_no 4~10을 쓰지 않고 건너뛴다.
 MAINTENANCE_SET_NO_OFFSET = 10
 
+# 중재 단계 조기 종료(숙달) 기준. 연속 INTERVENTION_EXIT_STREAK 회기가 각각
+# 만점의 INTERVENTION_EXIT_RATIO 이상이면 남은 중재 회기를 실시하지 않고
+# 유지 단계로 넘어간다. 한 세트 10문항 x 2점 = 20점이므로 지금 데이터에서는
+# 회기당 15점이 기준선이다. 문항 수가 바뀌어도 규칙이 깨지지 않도록 고정
+# 점수가 아니라 비율로 판정한다.
+INTERVENTION_EXIT_STREAK = 3
+INTERVENTION_EXIT_RATIO = 0.75
+
 
 def get_target_session_count(participant: Participant) -> int:
     return {
@@ -46,7 +54,77 @@ def completed_session_count(db: DbSession, participant: Participant) -> int:
     )
 
 
+def measured_score(trial: TrialResponse, eval_log) -> int | None:
+    """The score used for research measurement/display. Forced to 0 if the
+    participant's true independent first attempt (first_attempt_response)
+    was rejected by the validity/safety/profanity gate before an acceptable
+    answer was reached (i.e. it differs from what actually got saved into
+    first_response) - regardless of what that accepted retry's own AI
+    judgment (eval_log.score_level) came out to.
+
+    This never touches AiHintLog.score_level itself, which still drives the
+    intervention hint/pass flow honestly (see student.py's
+    session_first_response) - only what gets summed here."""
+    if eval_log is None:
+        return None
+    if (
+        trial.first_attempt_response is not None
+        and trial.first_response is not None
+        and trial.first_attempt_response != trial.first_response
+    ):
+        return 0
+    return eval_log.score_level
+
+
+def session_score(db: DbSession, study_session: StudySession) -> tuple[int, int]:
+    """(획득 점수, 만점) for one session, from the first-response (독립 반응)
+    scores - the same numbers the admin score table shows. Max is 문항 수 x 2.
+
+    A trial with no AI evaluation logged contributes 0 to the earned score but
+    still counts toward the max, so a session that failed to score can never
+    pass the mastery threshold by shrinking its own denominator."""
+    trials = db.query(TrialResponse).filter_by(session_id=study_session.id).all()
+    earned = 0
+    for trial in trials:
+        score = measured_score(trial, get_latest_evaluation(db, trial.id, 1))
+        if score is not None:
+            earned += score
+    return earned, len(trials) * 2
+
+
+def has_mastery_streak(db: DbSession, participant: Participant) -> bool:
+    """중재 단계에서 가장 최근 완료 회기 3개가 연속으로 75% 이상인지.
+    회기 번호 순으로 보므로 중간에 기준 미달 회기가 있으면 연속이 끊긴다."""
+    sessions = (
+        db.query(StudySession)
+        .filter_by(
+            participant_code=participant.participant_code,
+            phase="intervention",
+            status="completed",
+        )
+        .order_by(StudySession.session_number)
+        .all()
+    )
+    if len(sessions) < INTERVENTION_EXIT_STREAK:
+        return False
+
+    for study_session in sessions[-INTERVENTION_EXIT_STREAK:]:
+        earned, possible = session_score(db, study_session)
+        if possible == 0 or earned < possible * INTERVENTION_EXIT_RATIO:
+            return False
+    return True
+
+
 def advance_phase_if_needed(db: DbSession, participant: Participant) -> None:
+    if participant.current_phase == "intervention" and has_mastery_streak(db, participant):
+        # 숙달 기준 충족 - 남은 중재 회기는 실시하지 않는다. 남은 회기를 따로
+        # 지울 필요는 없다: current_phase가 바뀌면 get_or_create_active_session이
+        # 더 이상 중재 회기를 만들지 않고, completed_session_count도 유지 단계
+        # 기준으로 다시 세므로 유지 1회기부터 시작된다.
+        participant.current_phase = "maintenance"
+        db.commit()
+        return
+
     target = get_target_session_count(participant)
     completed = completed_session_count(db, participant)
     if completed < target:
