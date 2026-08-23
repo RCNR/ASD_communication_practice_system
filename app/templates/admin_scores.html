@@ -4,12 +4,12 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <link rel="stylesheet" href="/static/style.css" />
-  <title>중재 단계 전체 점수판 - ASD Communication Practice System</title>
+  <title>전체 점수판 - ASD Communication Practice System</title>
 </head>
 <body>
   <div class="card card-wide">
     <p class="nav"><a href="/admin">&larr; 참여자 목록</a></p>
-    <h1>중재 단계 전체 점수판</h1>
+    <h1>전체 점수판</h1>
 
     <form method="get" action="/admin/scores">
       <label for="participant_code">참여자</label>
@@ -19,52 +19,86 @@
         <option value="{{ code }}"{% if code == selected_participant_code %} selected{% endif %}>{{ code }}</option>
         {% endfor %}
       </select>
+
+      <label for="phase">단계</label>
+      <select id="phase" name="phase" onchange="this.form.submit()">
+        <option value=""{% if not selected_phase %} selected{% endif %}>전체</option>
+        {% for ph in phase_order %}
+        <option value="{{ ph }}"{% if ph == selected_phase %} selected{% endif %}>{{ phase_labels[ph] }}</option>
+        {% endfor %}
+      </select>
       <noscript><button type="submit">조회</button></noscript>
     </form>
 
-    <p class="section-title">회기별 점수 (1차 독립 응답 합산 - 종속변인)</p>
+    <p class="section-title">회기별 점수와 단계 전이 판정</p>
+    <p class="muted">
+      점수는 1차 독립 응답(힌트 이전) 합산 &mdash; 종속변인입니다.
+      기초선·유지는 연속 3회기가 우상향·우하향·변동 없음 중 하나일 때,
+      중재는 연속 3회기가 각각 75% 이상일 때 남은 회기를 실시하지 않고 다음 단계로 넘어갑니다.
+    </p>
+
+    {% for block in phase_blocks %}
+    <p class="section-title">
+      {{ block.participant_code }} &middot; {{ block.phase_label }}
+      <span class="badge">{{ block.outcome }}</span>
+    </p>
     <table>
       <tr>
-        <th>참여자 코드</th>
         <th>회기</th>
-        <th>1차 응답 점수 합계</th>
-        <th>응답 완료 문항 수</th>
+        <th>점수</th>
+        <th>비율</th>
+        <th>판정</th>
       </tr>
-      {% for row in session_summary_rows %}
-      <tr>
-        <td>{{ row.participant_code }}</td>
+      {% for row in block.sessions %}
+      <tr{% if row.met %} class="flagged"{% endif %}>
         <td>{{ row.session_number }}</td>
-        <td>{{ row.score_1st_total }} / {{ row.item_count * 2 }}</td>
-        <td>{{ row.answered_count }} / {{ row.item_count }}</td>
+        <td>{{ row.earned }} / {{ row.possible }}</td>
+        <td>{{ row.percent }}%</td>
+        <td>
+          {% if row.met %}&#9989; {{ row.judgment }} &rarr; 조기 종료{% endif %}
+        </td>
       </tr>
       {% endfor %}
+      {% if block.skipped %}
+      <tr>
+        <td class="muted">{{ block.skipped[0] }}{% if block.skipped|length > 1 %}&ndash;{{ block.skipped[-1] }}{% endif %}</td>
+        <td class="muted" colspan="3">미실시 &mdash; 조기 종료로 실시하지 않은 {{ block.skipped|length }}회기</td>
+      </tr>
+      {% endif %}
     </table>
+    {% else %}
+    <p class="muted">표시할 회기가 없습니다.</p>
+    {% endfor %}
 
     <p class="section-title">문항별 상세</p>
-    <table>
-      <tr>
-        <th>참여자 코드</th>
-        <th>회기</th>
-        <th>문항 순서</th>
-        <th>문항</th>
-        <th>1단계 점수</th>
-        <th>2단계 점수</th>
-        <th>예시 사용</th>
-        <th>완료</th>
-      </tr>
-      {% for row in score_rows %}
-      <tr>
-        <td>{{ row.participant_code }}</td>
-        <td>{{ row.session_number }}</td>
-        <td>{{ row.item_order }}</td>
-        <td>{{ row.item_text }}</td>
-        <td>{{ row.score1 if row.score1 is not none else "" }}</td>
-        <td>{{ row.score2 if row.score2 is not none else "" }}</td>
-        <td>{{ "예" if row.example_used else "" }}</td>
-        <td>{{ "완료" if row.completed else "" }}</td>
-      </tr>
-      {% endfor %}
-    </table>
+    <div class="table-scroll">
+      <table>
+        <tr>
+          <th>참여자 코드</th>
+          <th>단계</th>
+          <th>회기</th>
+          <th>문항 순서</th>
+          <th>문항</th>
+          <th>1단계 점수</th>
+          <th>2단계 점수</th>
+          <th>예시 사용</th>
+          <th>완료</th>
+        </tr>
+        {% for row in score_rows %}
+        <tr>
+          <td>{{ row.participant_code }}</td>
+          <td>{{ row.phase_label }}</td>
+          <td>{{ row.session_number }}</td>
+          <td>{{ row.item_order }}</td>
+          <td>{{ row.item_text }}</td>
+          <td>{{ row.score1 if row.score1 is not none else "" }}</td>
+          <td>{{ row.score2 if row.score2 is not none else "" }}</td>
+          <td>{{ "예" if row.example_used else "" }}</td>
+          <td>{{ "완료" if row.completed else "" }}</td>
+        </tr>
+        {% endfor %}
+      </table>
+    </div>
   </div>
 </body>
 </html>

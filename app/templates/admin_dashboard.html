@@ -16,7 +16,7 @@
       <span class="sep">|</span>
       <a href="/admin/pretraining-items">사전 문항 관리</a>
       <span class="sep">|</span>
-      <a href="/admin/scores">중재 단계 전체 점수판</a>
+      <a href="/admin/scores">전체 점수판</a>
       <span class="sep">|</span>
       <a href="/admin/participants/new">참여자 추가</a>
     </p>
@@ -36,9 +36,12 @@
         <td>{{ row.participant.participant_code }}</td>
         <td>{{ row.participant.current_phase }}</td>
         <td>{{ row.participant.status }}</td>
-        <td>{{ row.session_counts.baseline.completed }}/{{ row.session_counts.baseline.target }}</td>
-        <td>{{ row.session_counts.intervention.completed }}/{{ row.session_counts.intervention.target }}</td>
-        <td>{{ row.session_counts.maintenance.completed }}/{{ row.session_counts.maintenance.target }}</td>
+        {% for phase in ["baseline", "intervention", "maintenance"] %}
+        <td>
+          {{ row.session_counts[phase].completed }}/{{ row.session_counts[phase].target }}
+          {% if row.session_counts[phase].ended_early %}<span class="badge">조기 종료</span>{% endif %}
+        </td>
+        {% endfor %}
         <td>
           <a href="/admin/participants/{{ row.participant.participant_code }}">응답 보기</a>
           <span class="sep">|</span>

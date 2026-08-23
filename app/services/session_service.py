@@ -48,12 +48,14 @@ def get_target_session_count(participant: Participant) -> int:
     }[participant.current_phase]
 
 
-def completed_session_count(db: DbSession, participant: Participant) -> int:
+def completed_session_count(
+    db: DbSession, participant: Participant, phase: str | None = None
+) -> int:
     return (
         db.query(StudySession)
         .filter_by(
             participant_code=participant.participant_code,
-            phase=participant.current_phase,
+            phase=phase or participant.current_phase,
             status="completed",
         )
         .count()
@@ -116,31 +118,50 @@ def _recent_completed_sessions(
     return sessions[-count:] if len(sessions) >= count else []
 
 
+def meets_mastery(scores: list[tuple[int, int]]) -> bool:
+    """중재 숙달 판정. scores는 회기별 (획득 점수, 만점)."""
+    return all(
+        possible > 0 and earned >= possible * INTERVENTION_EXIT_RATIO
+        for earned, possible in scores
+    )
+
+
+def is_monotonic(scores: list[int]) -> bool:
+    """기초선/유지 안정성 판정: 점수가 한 방향으로만 움직이거나 변하지 않는지.
+    동점은 방향을 깨지 않으므로 (12, 12, 15)는 우상향으로 본다. 배제되는 것은
+    오르다 내리거나 그 반대인 지그재그뿐이다."""
+    pairs = list(zip(scores, scores[1:]))
+    return all(a <= b for a, b in pairs) or all(a >= b for a, b in pairs)
+
+
+def trend_label(scores: list[int]) -> str:
+    """관리자 점수판에 표시할 추세 이름. is_monotonic이 False인 구간만 '지그재그'."""
+    if len(set(scores)) == 1:
+        return "변동 없음"
+    pairs = list(zip(scores, scores[1:]))
+    if all(a <= b for a, b in pairs):
+        return "우상향"
+    if all(a >= b for a, b in pairs):
+        return "우하향"
+    return "지그재그"
+
+
 def has_mastery_streak(db: DbSession, participant: Participant) -> bool:
     """중재 단계 숙달 기준: 가장 최근 완료 회기 3개가 연속으로 75% 이상인지.
     회기 번호 순으로 보므로 중간에 기준 미달 회기가 있으면 연속이 끊긴다."""
     sessions = _recent_completed_sessions(db, participant, INTERVENTION_EXIT_STREAK)
     if not sessions:
         return False
-
-    for study_session in sessions:
-        earned, possible = session_score(db, study_session)
-        if possible == 0 or earned < possible * INTERVENTION_EXIT_RATIO:
-            return False
-    return True
+    return meets_mastery([session_score(db, s) for s in sessions])
 
 
 def has_stability_streak(db: DbSession, participant: Participant) -> bool:
     """기초선/유지 단계 안정성 기준: 가장 최근 완료 회기 3개의 점수가 한 방향으로
-    움직이거나(우상향/우하향) 변하지 않는지. 동점은 방향을 깨지 않으므로
-    (12, 12, 15)는 우상향으로 본다. 배제되는 것은 지그재그뿐이다."""
+    움직이거나(우상향/우하향) 변하지 않는지."""
     sessions = _recent_completed_sessions(db, participant, STABILITY_EXIT_STREAK)
     if not sessions:
         return False
-
-    scores = [session_score(db, s)[0] for s in sessions]
-    pairs = list(zip(scores, scores[1:]))
-    return all(a <= b for a, b in pairs) or all(a >= b for a, b in pairs)
+    return is_monotonic([session_score(db, s)[0] for s in sessions])
 
 
 def phase_complete(db: DbSession, participant: Participant) -> bool:
@@ -168,6 +189,26 @@ def advance_phase_if_needed(db: DbSession, participant: Participant) -> None:
     if current_index < len(PHASE_ORDER) - 1:
         participant.current_phase = PHASE_ORDER[current_index + 1]
         db.commit()
+
+
+def phase_ended_early(db: DbSession, participant: Participant, phase: str) -> bool:
+    """해당 단계가 계획된 회기를 다 채우지 않고 끝났는지. 이미 지나간 단계이거나,
+    현재 단계인데 종료 조건을 충족한 경우에만 True."""
+    target = {
+        "baseline": participant.baseline_length,
+        "intervention": participant.intervention_length,
+        "maintenance": participant.maintenance_length,
+    }[phase]
+    if completed_session_count(db, participant, phase) >= target:
+        return False
+
+    phase_index = PHASE_ORDER.index(phase)
+    current_index = PHASE_ORDER.index(participant.current_phase)
+    if phase_index < current_index:
+        return True
+    if phase_index == current_index:
+        return phase_complete(db, participant)
+    return False
 
 
 def get_active_session(db: DbSession, participant: Participant) -> StudySession | None:

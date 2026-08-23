@@ -21,14 +21,99 @@ from app.services.item_import_service import (
     upsert_items,
 )
 from app.services.session_service import (
+    INTERVENTION_EXIT_STREAK,
     PHASE_ORDER,
+    STABILITY_EXIT_STREAK,
     get_latest_evaluation,
     get_latest_hint_message,
+    is_monotonic,
     measured_score,
+    meets_mastery,
+    phase_ended_early,
+    session_score,
+    trend_label,
 )
 
 router = APIRouter(prefix="/admin")
 templates = Jinja2Templates(directory="app/templates")
+
+
+# 관리자 화면은 참여자 화면(student.py의 PHASE_LABEL)과 달리 연구 용어를 쓴다.
+PHASE_LABEL = {"baseline": "기초선", "intervention": "중재", "maintenance": "유지"}
+
+PHASE_LENGTH_FIELD = {
+    "baseline": "baseline_length",
+    "intervention": "intervention_length",
+    "maintenance": "maintenance_length",
+}
+
+
+def _phase_score_block(db: Session, participant: Participant, phase: str) -> dict:
+    """한 참여자의 한 단계를 회기별 점수 + 전이 판정으로 정리한다.
+
+    판정은 실제 전이에 쓰이는 것과 같은 함수(meets_mastery / is_monotonic)를
+    각 회기 시점의 직전 STREAK개 회기에 다시 적용해서 재현한다. 두 번 구현하지
+    않으므로 표에 찍힌 판정과 참여자가 실제로 겪은 전이가 어긋날 수 없다."""
+    is_intervention = phase == "intervention"
+    streak = INTERVENTION_EXIT_STREAK if is_intervention else STABILITY_EXIT_STREAK
+
+    sessions = (
+        db.query(StudySession)
+        .filter_by(participant_code=participant.participant_code, phase=phase, status="completed")
+        .order_by(StudySession.session_number)
+        .all()
+    )
+    scores = [session_score(db, s) for s in sessions]
+
+    rows = []
+    met_at = None
+    for i, (study_session, (earned, possible)) in enumerate(zip(sessions, scores)):
+        judgment, met = "", False
+        if i + 1 >= streak and met_at is None:
+            window = scores[i + 1 - streak : i + 1]
+            earned_window = [e for e, _ in window]
+            if is_intervention:
+                met = meets_mastery(window)
+                judgment = "연속 {}회기 75% 이상".format(streak) if met else ""
+            else:
+                met = is_monotonic(earned_window)
+                judgment = (
+                    "{} {}".format(" → ".join(str(e) for e in earned_window), trend_label(earned_window))
+                    if met
+                    else ""
+                )
+            if met:
+                met_at = study_session.session_number
+        rows.append(
+            {
+                "session_number": study_session.session_number,
+                "earned": earned,
+                "possible": possible,
+                "percent": round(earned * 100 / possible) if possible else None,
+                "judgment": judgment,
+                "met": met,
+            }
+        )
+
+    target = getattr(participant, PHASE_LENGTH_FIELD[phase])
+    ended_early = phase_ended_early(db, participant, phase)
+    if ended_early:
+        outcome = "조기 종료 (기준 충족)"
+    elif len(sessions) >= target:
+        outcome = "계획 회기 소진"
+    else:
+        outcome = "진행 중"
+
+    return {
+        "participant_code": participant.participant_code,
+        "phase": phase,
+        "phase_label": PHASE_LABEL[phase],
+        "target": target,
+        "sessions": rows,
+        "skipped": list(range(len(sessions) + 1, target + 1)) if ended_early else [],
+        "outcome": outcome,
+        "ended_early": ended_early,
+    }
 
 
 def _require_admin(request: Request):
@@ -49,12 +134,6 @@ def admin_dashboard(request: Request, db: Session = Depends(get_db)):
     if redirect:
         return redirect
 
-    phase_length_field = {
-        "baseline": "baseline_length",
-        "intervention": "intervention_length",
-        "maintenance": "maintenance_length",
-    }
-
     rows = []
     for participant in db.query(Participant).order_by(Participant.participant_code).all():
         session_counts = {
@@ -62,7 +141,10 @@ def admin_dashboard(request: Request, db: Session = Depends(get_db)):
                 "completed": db.query(StudySession)
                 .filter_by(participant_code=participant.participant_code, phase=phase, status="completed")
                 .count(),
-                "target": getattr(participant, phase_length_field[phase]),
+                "target": getattr(participant, PHASE_LENGTH_FIELD[phase]),
+                # 조기 종료된 단계는 완료 수가 목표보다 작다 - 표시를 구분하지
+                # 않으면 "아직 남았다"로 오해된다.
+                "ended_early": phase_ended_early(db, participant, phase),
             }
             for phase in PHASE_ORDER
         }
@@ -262,62 +344,63 @@ def admin_participant_detail(request: Request, participant_code: str, db: Sessio
 
 
 @router.get("/scores")
-def admin_scores(request: Request, participant_code: str = "", db: Session = Depends(get_db)):
+def admin_scores(
+    request: Request,
+    participant_code: str = "",
+    phase: str = "",
+    db: Session = Depends(get_db),
+):
     redirect = _require_admin(request)
     if redirect:
         return redirect
 
-    participant_codes = [p.participant_code for p in db.query(Participant).order_by(Participant.participant_code)]
+    participants = db.query(Participant).order_by(Participant.participant_code).all()
+    participant_codes = [p.participant_code for p in participants]
+
+    selected_phases = [phase] if phase in PHASE_ORDER else PHASE_ORDER
+    selected_participants = [
+        p for p in participants if not participant_code or p.participant_code == participant_code
+    ]
+
+    phase_blocks = [
+        _phase_score_block(db, p, ph) for p in selected_participants for ph in selected_phases
+    ]
+    phase_blocks = [b for b in phase_blocks if b["sessions"] or b["skipped"]]
 
     query = (
         db.query(TrialResponse, StudySession, Item, Participant)
         .join(StudySession, TrialResponse.session_id == StudySession.id)
         .join(Item, TrialResponse.item_id == Item.item_id)
         .join(Participant, StudySession.participant_code == Participant.participant_code)
-        .filter(StudySession.phase == "intervention")
+        .filter(StudySession.phase.in_(selected_phases))
     )
     if participant_code:
         query = query.filter(Participant.participant_code == participant_code)
 
     trials = query.order_by(
-        Participant.participant_code, StudySession.session_number, TrialResponse.item_order
+        Participant.participant_code,
+        StudySession.phase,
+        StudySession.session_number,
+        TrialResponse.item_order,
     ).all()
 
-    score_rows = []
-    session_totals = {}  # (participant_code, session_number) -> {"total": int, "count": int}
-    for trial, study_session, item, participant in trials:
-        eval1 = get_latest_evaluation(db, trial.id, 1)
-        eval2 = get_latest_evaluation(db, trial.id, 2)
-        score1 = measured_score(trial, eval1)
-        score_rows.append(
-            {
-                "participant_code": participant.participant_code,
-                "session_number": study_session.session_number,
-                "item_order": trial.item_order,
-                "item_text": item.item_text,
-                "score1": score1,
-                "score2": eval2.score_level if eval2 else None,
-                "example_used": trial.example_used,
-                "completed": trial.completed,
-            }
-        )
-
-        key = (participant.participant_code, study_session.session_number)
-        totals = session_totals.setdefault(key, {"total": 0, "count": 0, "answered": 0})
-        totals["count"] += 1
-        if score1 is not None:
-            totals["total"] += score1
-            totals["answered"] += 1
-
-    session_summary_rows = [
+    score_rows = [
         {
-            "participant_code": code,
-            "session_number": session_number,
-            "score_1st_total": totals["total"],
-            "item_count": totals["count"],
-            "answered_count": totals["answered"],
+            "participant_code": participant.participant_code,
+            "phase_label": PHASE_LABEL[study_session.phase],
+            "session_number": study_session.session_number,
+            "item_order": trial.item_order,
+            "item_text": item.item_text,
+            "score1": measured_score(trial, get_latest_evaluation(db, trial.id, 1)),
+            "score2": (
+                get_latest_evaluation(db, trial.id, 2).score_level
+                if get_latest_evaluation(db, trial.id, 2)
+                else None
+            ),
+            "example_used": trial.example_used,
+            "completed": trial.completed,
         }
-        for (code, session_number), totals in sorted(session_totals.items())
+        for trial, study_session, item, participant in trials
     ]
 
     return templates.TemplateResponse(
@@ -325,13 +408,14 @@ def admin_scores(request: Request, participant_code: str = "", db: Session = Dep
         "admin_scores.html",
         {
             "score_rows": score_rows,
-            "session_summary_rows": session_summary_rows,
+            "phase_blocks": phase_blocks,
             "participant_codes": participant_codes,
             "selected_participant_code": participant_code,
+            "selected_phase": phase if phase in PHASE_ORDER else "",
+            "phase_labels": PHASE_LABEL,
+            "phase_order": PHASE_ORDER,
         },
     )
-
-
 def _items_of(db: Session, use_types: tuple[str, ...]) -> list[Item]:
     """Item bank rows for one upload screen, listed the way they'll be shown to
     participants (set by set, in-set order) rather than by item_id."""
