@@ -74,6 +74,12 @@
     </form>
 
     {% elif stage == "hint_wait_revision" %}
+    {% if suggestion_message %}
+    <div class="hint-box">
+      <span class="label">제안</span>
+      {{ suggestion_message }}
+    </div>
+    {% endif %}
     <div class="hint-box">
       <span class="label">힌트</span>
       {{ feedback_message }}

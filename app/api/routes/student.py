@@ -129,7 +129,11 @@ def _render_intervention_item(
 
     eval1 = get_latest_evaluation(db, trial.id, 1)
 
-    if eval1 is None or eval1.score_level in (1, 2):
+    # 2점만 통과한다. 1점(인정과 이어가기 중 하나만)도 0점과 같이 힌트를 받고
+    # 다시 쓴다 - 다만 힌트는 빠진 요소 하나만 다루고, 잘한 요소는 고정 제안
+    # 메시지가 먼저 짚어준다. eval1이 None인 경우(로그 유실)는 학생을 가두지
+    # 않도록 통과시킨다.
+    if eval1 is None or eval1.score_level == 2:
         return templates.TemplateResponse(
             request,
             "intervention_item.html",
@@ -151,12 +155,13 @@ def _render_intervention_item(
                 "stage": "hint_wait_revision",
                 "first_response": trial.first_response,
                 "feedback_message": eval1.hint_message,
+                "suggestion_message": _suggestion_for(eval1, item),
             },
         )
 
     eval2 = get_latest_evaluation(db, trial.id, 2)
 
-    if eval2 is None or eval2.score_level in (1, 2):
+    if eval2 is None or eval2.score_level == 2:
         return templates.TemplateResponse(
             request,
             "intervention_item.html",
@@ -512,7 +517,8 @@ def session_revise(
         score, _, _, _ = evaluate_answer(
             db, trial, item, hint_level=2, student_response=response_text
         )
-        if score == 0:
+        if score < 2:
+            # 2점이 아니면(0점이든 1점이든) 다음은 예시를 따라 쓰는 단계다.
             trial.example_used = True
             db.commit()
 

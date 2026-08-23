@@ -187,6 +187,7 @@ def pretraining_item(request: Request, db: Session = Depends(get_db)):
                 "stage": "hint_wait_revision",
                 "first_response": state["first_response"],
                 "feedback_message": state["feedback_message"],
+                "suggestion_message": state["suggestion_message"],
             },
         )
 
@@ -236,12 +237,15 @@ def pretraining_first_response(
         score, feedback_message, missing, _ = evaluate_answer(
             db, None, item, hint_level=1, student_response=response_text, with_hint=True
         )
-        if score in (1, 2):
+        if score == 2:
             state["stage"] = "adequate"
             state["suggestion_message"] = get_suggestion_message(missing, item.sentiment)
         else:
             state["stage"] = "hint_wait_revision"
             state["feedback_message"] = feedback_message
+            # 1점이면 잘한 요소를 짚어주는 고정 제안이 힌트 위에 함께 나온다.
+            # 0점이면 missing이 None이라 제안 없이 힌트만 나온다.
+            state["suggestion_message"] = get_suggestion_message(missing, item.sentiment)
 
     request.session["pretraining"] = state
     return RedirectResponse(url=f"{ACTION_PREFIX}/item", status_code=303)
@@ -283,7 +287,7 @@ def pretraining_revise(
     if hint_level == 1:
         state["revised_response_1"] = response_text
         score, _, missing, _ = evaluate_answer(db, None, item, hint_level=2, student_response=response_text)
-        if score == 0:
+        if score < 2:
             state["stage"] = "example_wait_final_revision"
         else:
             state["stage"] = "adequate"

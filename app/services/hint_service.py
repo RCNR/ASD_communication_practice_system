@@ -51,14 +51,19 @@ RESPONSE_JSON_SCHEMA = {
 
 HINT_SYSTEM_PROMPT = """너는 자폐성장애 중·고등학생의 학교생활 대화 연습을 돕는 힌트 도우미다.
 
-학생이 친구의 메시지에 답장을 썼지만 "인정"과 "이어가기"가 둘 다 빠졌다. 학생이 답장을 다시 써 볼 수 있도록
+학생이 친구의 메시지에 답장을 썼지만 필요한 요소가 빠졌다. 학생이 답장을 다시 써 볼 수 있도록
 힌트 한 개를 작성하는 것이 네 역할이다. 채점은 네 역할이 아니다.
 
 - 인정: 친구가 드러낸 정서를 알아주는 말
 - 이어가기: 대화의 초점을 친구에게 유지한 채 덧붙이는 말
 
-입력으로 주어지는 hint_ack는 이 문항에서 알아줘야 할 정서, hint_con은 이어갈 만한 방향이다. 이 두 재료를
-학생이 이해할 수 있는 말로 풀어서 힌트를 만든다.
+입력의 missing이 이번에 빠진 요소다. missing에 있는 요소에 대해서만 힌트를 쓴다.
+- missing이 두 개면 둘 다 안내한다.
+- missing이 하나면 나머지 하나는 학생이 이미 잘 해낸 것이다. 이미 잘한 요소를 다시 요구하거나 지적하지
+  않는다. 빠진 요소 하나만 안내한다.
+
+입력으로 주어지는 hint_ack는 이 문항에서 알아줘야 할 정서, hint_con은 이어갈 만한 방향이다. missing에
+해당하는 재료만 주어지므로, 그것을 학생이 이해할 수 있는 말로 풀어서 힌트를 만든다.
 
 반드시 지켜야 할 규칙:
 1. 학생을 대신해 완성된 답장을 작성하지 않는다. 정답 문장 전체는 물론, 답장에 그대로 쓸 수 있는 구체적인
@@ -329,8 +334,16 @@ def _validate_hint(parsed: dict, item: Item) -> bool:
     return not any(keyword in hint for keyword in PERSONAL_INFO_KEYWORDS)
 
 
-def generate_hint(item: Item, student_response: str) -> tuple[str | None, bool]:
-    """Second-step hint for a 0-point response. Returns (hint, fallback_used).
+def generate_hint(
+    item: Item, student_response: str, missing: list[str]
+) -> tuple[str | None, bool]:
+    """Hint for a response that scored below 2. missing is which elements the
+    response lacked - ["인정", "이어가기"] for 0 points, one of them for 1.
+    Returns (hint, fallback_used).
+
+    Only the missing elements' material is sent: for a 1-point response,
+    passing the element the student already got right invites a hint that
+    re-demands work they already did.
 
     Deliberately a separate call from evaluate_answer: the scoring prompt must
     not see hint_ack/hint_con (they'd bias the judgment toward one "correct"
@@ -343,9 +356,12 @@ def generate_hint(item: Item, student_response: str) -> tuple[str | None, bool]:
         "item_text": item.item_text,
         "student_response": student_response,
         "sentiment": item.sentiment,
-        "hint_ack": item.hint_ack,
-        "hint_con": item.hint_con,
+        "missing": missing,
     }
+    if "인정" in missing:
+        payload["hint_ack"] = item.hint_ack
+    if "이어가기" in missing:
+        payload["hint_con"] = item.hint_con
 
     try:
         response = client.chat.completions.create(
@@ -384,10 +400,12 @@ def evaluate_answer(
     (used for ephemeral, non-persisted practice sessions - e.g. pretraining -
     where there is no real trial row to attach the log to).
 
-    hint_message is only produced when with_hint is True and the score is 0,
-    via a second AI call (generate_hint). Callers that never show a hint -
-    baseline/maintenance, and the intervention step that already had its one
-    hint - leave with_hint False so no hint call is made at all.
+    hint_message is only produced when with_hint is True and the score is
+    below 2, via a second AI call (generate_hint). A 1-point response gets a
+    hint about the one element it missed; a 0-point one gets both. Callers
+    that never show a hint - baseline/maintenance, and the intervention step
+    that already had its one hint - leave with_hint False so no hint call is
+    made at all.
 
     The scoring prompt deliberately receives neither the example_* columns nor
     the hint_* columns: examples would turn the judgment into "is this similar
@@ -454,8 +472,10 @@ def evaluate_answer(
     hint_fallback_used = False
     if profanity_detected:
         hint_message = PROFANITY_MESSAGE
-    elif with_hint and score == 0:
-        hint_message, hint_fallback_used = generate_hint(item, student_response)
+    elif with_hint and score < 2:
+        hint_message, hint_fallback_used = generate_hint(
+            item, student_response, [missing] if missing else ["인정", "이어가기"]
+        )
 
     if trial is not None:
         db.add(
