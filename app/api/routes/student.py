@@ -24,7 +24,6 @@ from app.services.hint_service import (
 )
 from app.services.session_service import (
     advance_phase_if_needed,
-    completed_session_count,
     get_active_session,
     get_current_trial,
     get_latest_evaluation,
@@ -32,6 +31,7 @@ from app.services.session_service import (
     get_or_create_active_session,
     get_target_session_count,
     mark_session_completed,
+    phase_complete,
 )
 
 router = APIRouter()
@@ -241,8 +241,7 @@ def session_screen(request: Request, db: Session = Depends(get_db)):
 
     study_session = get_active_session(db, participant)
     if study_session is None:
-        target = get_target_session_count(participant)
-        if completed_session_count(db, participant) >= target:
+        if phase_complete(db, participant):
             return templates.TemplateResponse(request, "study_complete.html")
 
         if participant.pretraining_completed:
@@ -256,9 +255,9 @@ def session_screen(request: Request, db: Session = Depends(get_db)):
         mark_session_completed(db, study_session)
         advance_phase_if_needed(db, participant)
 
-        study_finished = participant.current_phase == "maintenance" and completed_session_count(
+        study_finished = participant.current_phase == "maintenance" and phase_complete(
             db, participant
-        ) >= get_target_session_count(participant)
+        )
 
         context = {"study_finished": study_finished}
         if not study_finished:
@@ -308,9 +307,10 @@ def session_gate_screen(request: Request, db: Session = Depends(get_db)):
     if get_active_session(db, participant) is not None:
         return RedirectResponse(url="/session", status_code=303)
 
-    target = get_target_session_count(participant)
-    if completed_session_count(db, participant) >= target:
+    if phase_complete(db, participant):
         return RedirectResponse(url="/session", status_code=303)
+
+    target = get_target_session_count(participant)
 
     return templates.TemplateResponse(
         request,

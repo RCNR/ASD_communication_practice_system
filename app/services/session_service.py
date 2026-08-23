@@ -33,6 +33,12 @@ MAINTENANCE_SET_NO_OFFSET = 10
 INTERVENTION_EXIT_STREAK = 3
 INTERVENTION_EXIT_RATIO = 0.75
 
+# 기초선/유지 단계 조기 종료(안정성) 기준. 연속 STABILITY_EXIT_STREAK 회기의
+# 점수가 한 방향으로만 움직이거나(우상향/우하향) 변하지 않으면 남은 회기를
+# 실시하지 않는다. 동점은 방향을 깨지 않으므로 (12, 12, 15)도 우상향으로 본다.
+# 배제되는 것은 오르다 내리거나 그 반대인 지그재그뿐이다.
+STABILITY_EXIT_STREAK = 3
+
 
 def get_target_session_count(participant: Participant) -> int:
     return {
@@ -92,42 +98,70 @@ def session_score(db: DbSession, study_session: StudySession) -> tuple[int, int]
     return earned, len(trials) * 2
 
 
-def has_mastery_streak(db: DbSession, participant: Participant) -> bool:
-    """중재 단계에서 가장 최근 완료 회기 3개가 연속으로 75% 이상인지.
-    회기 번호 순으로 보므로 중간에 기준 미달 회기가 있으면 연속이 끊긴다."""
+def _recent_completed_sessions(
+    db: DbSession, participant: Participant, count: int
+) -> list[StudySession]:
+    """현재 단계에서 가장 최근에 완료한 회기 count개를 회기 번호 순으로.
+    완료 회기가 count개에 못 미치면 [] - 아직 판정할 수 없다는 뜻이다."""
     sessions = (
         db.query(StudySession)
         .filter_by(
             participant_code=participant.participant_code,
-            phase="intervention",
+            phase=participant.current_phase,
             status="completed",
         )
         .order_by(StudySession.session_number)
         .all()
     )
-    if len(sessions) < INTERVENTION_EXIT_STREAK:
+    return sessions[-count:] if len(sessions) >= count else []
+
+
+def has_mastery_streak(db: DbSession, participant: Participant) -> bool:
+    """중재 단계 숙달 기준: 가장 최근 완료 회기 3개가 연속으로 75% 이상인지.
+    회기 번호 순으로 보므로 중간에 기준 미달 회기가 있으면 연속이 끊긴다."""
+    sessions = _recent_completed_sessions(db, participant, INTERVENTION_EXIT_STREAK)
+    if not sessions:
         return False
 
-    for study_session in sessions[-INTERVENTION_EXIT_STREAK:]:
+    for study_session in sessions:
         earned, possible = session_score(db, study_session)
         if possible == 0 or earned < possible * INTERVENTION_EXIT_RATIO:
             return False
     return True
 
 
-def advance_phase_if_needed(db: DbSession, participant: Participant) -> None:
-    if participant.current_phase == "intervention" and has_mastery_streak(db, participant):
-        # 숙달 기준 충족 - 남은 중재 회기는 실시하지 않는다. 남은 회기를 따로
-        # 지울 필요는 없다: current_phase가 바뀌면 get_or_create_active_session이
-        # 더 이상 중재 회기를 만들지 않고, completed_session_count도 유지 단계
-        # 기준으로 다시 세므로 유지 1회기부터 시작된다.
-        participant.current_phase = "maintenance"
-        db.commit()
-        return
+def has_stability_streak(db: DbSession, participant: Participant) -> bool:
+    """기초선/유지 단계 안정성 기준: 가장 최근 완료 회기 3개의 점수가 한 방향으로
+    움직이거나(우상향/우하향) 변하지 않는지. 동점은 방향을 깨지 않으므로
+    (12, 12, 15)는 우상향으로 본다. 배제되는 것은 지그재그뿐이다."""
+    sessions = _recent_completed_sessions(db, participant, STABILITY_EXIT_STREAK)
+    if not sessions:
+        return False
 
-    target = get_target_session_count(participant)
-    completed = completed_session_count(db, participant)
-    if completed < target:
+    scores = [session_score(db, s)[0] for s in sessions]
+    pairs = list(zip(scores, scores[1:]))
+    return all(a <= b for a, b in pairs) or all(a >= b for a, b in pairs)
+
+
+def phase_complete(db: DbSession, participant: Participant) -> bool:
+    """현재 단계에서 더 실시할 회기가 남아 있지 않은지. 계획된 회기 수를 모두
+    채웠거나, 단계별 조기 종료 기준을 충족하면 True.
+
+    유지 단계에서 True가 되면 PHASE_ORDER에 다음 단계가 없으므로 그대로 연구
+    종료가 된다 - get_or_create_active_session이 더 이상 회기를 만들지 않고
+    study_complete 화면이 뜬다."""
+    if completed_session_count(db, participant) >= get_target_session_count(participant):
+        return True
+    if participant.current_phase == "intervention":
+        return has_mastery_streak(db, participant)
+    return has_stability_streak(db, participant)
+
+
+def advance_phase_if_needed(db: DbSession, participant: Participant) -> None:
+    """단계가 끝났으면 다음 단계로 넘긴다. 남은 회기를 따로 지울 필요는 없다:
+    current_phase가 바뀌면 get_or_create_active_session이 더 이상 이전 단계의
+    회기를 만들지 않고, completed_session_count도 새 단계 기준으로 다시 센다."""
+    if not phase_complete(db, participant):
         return
 
     current_index = PHASE_ORDER.index(participant.current_phase)
@@ -195,9 +229,9 @@ def get_or_create_active_session(db: DbSession, participant: Participant) -> Stu
     if active_session:
         return active_session
 
-    target = get_target_session_count(participant)
-    if completed_session_count(db, participant) >= target:
-        # Terminal phase (maintenance) already completed its full session count.
+    if phase_complete(db, participant):
+        # Terminal phase (maintenance) is over - either it ran its full session
+        # count or it met the stability criterion.
         return None
 
     session_number = (

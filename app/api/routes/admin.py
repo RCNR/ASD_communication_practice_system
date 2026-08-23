@@ -92,7 +92,7 @@ def admin_participant_new_submit(
     password: str = Form(...),
     baseline_length: int = Form(...),
     intervention_length: int = Form(20),
-    maintenance_length: int = Form(2),
+    maintenance_length: int = Form(4),
     db: Session = Depends(get_db),
 ):
     redirect = _require_admin(request)
