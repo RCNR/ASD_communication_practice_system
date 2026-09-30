@@ -33,10 +33,16 @@ MAINTENANCE_SET_NO_OFFSET = 10
 INTERVENTION_EXIT_STREAK = 3
 INTERVENTION_EXIT_RATIO = 0.75
 
+# 중재 단계는 숙달 기준을 충족해도 최소 이 회기 수를 채우기 전에는 끝나지 않는다.
+# 연구 분석에 필요한 하한이다. 5회기를 채운 뒤부터 기존 연속 3회기 판정을 한다
+# (5회기 직후의 판정 창은 3·4·5회기).
+INTERVENTION_MIN_SESSIONS = 5
+
 # 기초선/유지 단계 조기 종료(안정성) 기준. 연속 STABILITY_EXIT_STREAK 회기의
-# 점수가 한 방향으로만 움직이거나(우상향/우하향) 변하지 않으면 남은 회기를
-# 실시하지 않는다. 동점은 방향을 깨지 않으므로 (12, 12, 15)도 우상향으로 본다.
-# 배제되는 것은 오르다 내리거나 그 반대인 지그재그뿐이다.
+# 점수가 매 회기 오르거나(우상향) 매 회기 내리거나(우하향) 전부 같으면(변동
+# 없음) 남은 회기를 실시하지 않는다. 가운데 점수에서 방향이 정해지면 세 번째도
+# 같은 방향이어야 하므로 (12, 12, 15)나 (15, 12, 12)처럼 한 번만 같은 경우는
+# 종료하지 않는다.
 STABILITY_EXIT_STREAK = 3
 
 
@@ -127,21 +133,20 @@ def meets_mastery(scores: list[tuple[int, int]]) -> bool:
 
 
 def is_monotonic(scores: list[int]) -> bool:
-    """기초선/유지 안정성 판정: 점수가 한 방향으로만 움직이거나 변하지 않는지.
-    동점은 방향을 깨지 않으므로 (12, 12, 15)는 우상향으로 본다. 배제되는 것은
-    오르다 내리거나 그 반대인 지그재그뿐이다."""
-    pairs = list(zip(scores, scores[1:]))
-    return all(a <= b for a, b in pairs) or all(a >= b for a, b in pairs)
+    """기초선/유지 안정성 판정: 점수가 매 회기 오르거나, 매 회기 내리거나,
+    전부 같은지. (12, 12, 15)처럼 중간에 한 번만 같은 경우는 False."""
+    return trend_label(scores) != "지그재그"
 
 
 def trend_label(scores: list[int]) -> str:
-    """관리자 점수판에 표시할 추세 이름. is_monotonic이 False인 구간만 '지그재그'."""
+    """관리자 점수판에 표시할 추세 이름. is_monotonic이 False인 구간은 모두
+    '지그재그'로 묶는다 ((12, 12, 15)처럼 방향이 이어지지 않는 경우 포함)."""
     if len(set(scores)) == 1:
         return "변동 없음"
     pairs = list(zip(scores, scores[1:]))
-    if all(a <= b for a, b in pairs):
+    if all(a < b for a, b in pairs):
         return "우상향"
-    if all(a >= b for a, b in pairs):
+    if all(a > b for a, b in pairs):
         return "우하향"
     return "지그재그"
 
@@ -171,9 +176,12 @@ def phase_complete(db: DbSession, participant: Participant) -> bool:
     유지 단계에서 True가 되면 PHASE_ORDER에 다음 단계가 없으므로 그대로 연구
     종료가 된다 - get_or_create_active_session이 더 이상 회기를 만들지 않고
     study_complete 화면이 뜬다."""
-    if completed_session_count(db, participant) >= get_target_session_count(participant):
+    completed = completed_session_count(db, participant)
+    if completed >= get_target_session_count(participant):
         return True
     if participant.current_phase == "intervention":
+        if completed < INTERVENTION_MIN_SESSIONS:
+            return False
         return has_mastery_streak(db, participant)
     return has_stability_streak(db, participant)
 

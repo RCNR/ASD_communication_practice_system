@@ -22,6 +22,7 @@ from app.services.item_import_service import (
 )
 from app.services.session_service import (
     INTERVENTION_EXIT_STREAK,
+    INTERVENTION_MIN_SESSIONS,
     PHASE_ORDER,
     STABILITY_EXIT_STREAK,
     get_latest_evaluation,
@@ -56,6 +57,9 @@ def _phase_score_block(db: Session, participant: Participant, phase: str) -> dic
     않으므로 표에 찍힌 판정과 참여자가 실제로 겪은 전이가 어긋날 수 없다."""
     is_intervention = phase == "intervention"
     streak = INTERVENTION_EXIT_STREAK if is_intervention else STABILITY_EXIT_STREAK
+    # 판정을 시작하는 회기. 중재는 최소 회기를 채우기 전에는 기준을 충족해도
+    # 전이하지 않으므로 표에도 표시하지 않는다.
+    first_judged = max(streak, INTERVENTION_MIN_SESSIONS) if is_intervention else streak
 
     sessions = (
         db.query(StudySession)
@@ -69,7 +73,7 @@ def _phase_score_block(db: Session, participant: Participant, phase: str) -> dic
     met_at = None
     for i, (study_session, (earned, possible)) in enumerate(zip(sessions, scores)):
         judgment, met = "", False
-        if i + 1 >= streak and met_at is None:
+        if i + 1 >= first_judged and met_at is None:
             window = scores[i + 1 - streak : i + 1]
             earned_window = [e for e, _ in window]
             if is_intervention:
