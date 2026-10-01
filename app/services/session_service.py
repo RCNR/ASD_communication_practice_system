@@ -232,9 +232,12 @@ def get_active_session(db: DbSession, participant: Participant) -> StudySession 
 
 
 def get_next_session_number(db: DbSession, participant: Participant) -> int:
+    """무효 처리한(stopped) 회기는 세지 않는다. 유지 회기를 무효로 하고 중재로
+    되돌린 참여자가 유지에 다시 들어오면 1회기(세트 11번)부터 새로 시작한다."""
     return (
         db.query(StudySession)
         .filter_by(participant_code=participant.participant_code, phase=participant.current_phase)
+        .filter(StudySession.status != "stopped")
         .count()
         + 1
     )
@@ -283,12 +286,7 @@ def get_or_create_active_session(db: DbSession, participant: Participant) -> Stu
         # count or it met the stability criterion.
         return None
 
-    session_number = (
-        db.query(StudySession)
-        .filter_by(participant_code=participant.participant_code, phase=phase)
-        .count()
-        + 1
-    )
+    session_number = get_next_session_number(db, participant)
 
     set_items = get_set_items(db, phase, session_number)
     if not set_items:

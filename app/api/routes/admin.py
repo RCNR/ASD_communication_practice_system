@@ -322,7 +322,8 @@ def admin_participant_detail(request: Request, participant_code: str, db: Sessio
         eval2 = get_latest_evaluation(db, trial.id, 2)
         trial_rows.append(
             {
-                "phase": study_session.phase,
+                # 무효 회기는 같은 회기 번호의 새 회기와 구분되도록 표시만 남긴다.
+                "phase": study_session.phase + (" (무효)" if study_session.status == "stopped" else ""),
                 "session_number": study_session.session_number,
                 "item_order": trial.item_order,
                 "item_text": item.item_text,
@@ -377,6 +378,7 @@ def admin_scores(
         .join(Item, TrialResponse.item_id == Item.item_id)
         .join(Participant, StudySession.participant_code == Participant.participant_code)
         .filter(StudySession.phase.in_(selected_phases))
+        .filter(StudySession.status != "stopped")
     )
     if participant_code:
         query = query.filter(Participant.participant_code == participant_code)
